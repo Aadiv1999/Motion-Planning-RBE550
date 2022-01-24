@@ -118,7 +118,7 @@ class Runner:
             
             # time.sleep(0.02)
         
-        pygame.image.save(self.vis.screen, "seventy.jpeg")
+        pygame.image.save(self.vis.screen, "ten.jpeg")
 
 def main():
     height = 1280
@@ -127,7 +127,7 @@ def main():
     world = World(width, height)
     vis = Visualizer(world)
 
-    coverage = 70
+    coverage = 10
     runner = Runner(world, vis, coverage/100)
 
     try:
