@@ -6,17 +6,35 @@ import numpy as np
 import pygame
 # import matplotlib.path as mplPath
 # import matplotlib.pylab as plt
-# from math import sin, cos, atan, atan2, pi, sqrt
+from math import sin, cos, atan, atan2, pi, sqrt
 
 
 class World:
-    obstacles = [[(10,10), (30,10), (30,0), (40,0), (40,20), (10,20)]]
+    shape = np.array([[[0,0], [20,0], [20,-10], [30,-10], [30,10], [0,10]],
+             [[0,0], [10,0], [10,40], [0,40]],
+             [[0,0], [10,0], [10,10], [20,10], [20,30], [10,30], [10,20], [0,20]],
+             [[0,0], [10,0], [10,30], [0,30], [0,20], [-10,20], [-10,10], [0,10]]])
+    
+    obstacle = []
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
 
-    def generate_random_tetromino(self):
-        pass
+    def generate_random_tetromino(self) -> None:
+        start = np.array([np.random.randint(0,127), np.random.randint(0,127)])
+        choose_shape = np.random.randint(0,4)
+
+        choose_orientation = np.random.randint(0,4)*(pi/2)
+
+        rot_matrix = np.array([[cos(choose_orientation), sin(choose_orientation)],
+                               [-sin(choose_orientation), cos(choose_orientation)]])
+        
+
+        new_obs = self.shape[choose_shape] @ rot_matrix + start*10
+        self.obstacle.append(new_obs)
+
+
+
 
 
 
@@ -37,7 +55,8 @@ class Visualizer:
 
     def display_world(self):
 
-        for obs in self.world.obstacles:
+        for obs in self.world.obstacle:
+            # print(obs)
             pygame.draw.polygon(self.screen, self.BLACK, obs)
 
 
@@ -72,7 +91,7 @@ class Runner:
             if not running:
                 pygame.quit()
             
-            time.sleep(0.01)
+            time.sleep(0.02)
 
 def main():
     height = 1280
