@@ -30,10 +30,8 @@ class World:
 
     def generate_random_tetromino(self) -> None:
         possible_starts = np.argwhere(self.env == 0)
-        # print(np.shape(possible_starts))
-        # start = np.array([np.random.randint(3,124), np.random.randint(4,124)])
         start = possible_starts[np.random.randint(0,len(possible_starts))]
-        # print(start)
+
         choose_shape = np.random.randint(0,4)
         # choose_shape = 2
         choose_orientation = np.random.randint(0,2)*(pi/2)
@@ -132,7 +130,7 @@ def main():
     world = World(width, height)
     vis = Visualizer(world)
 
-    coverage = 30
+    coverage = 50
     runner = Runner(world, vis, coverage/100)
 
     try:
