@@ -2,49 +2,73 @@ from operator import truediv
 from pickletools import uint8
 import time
 from typing import List, Tuple, Union
-import copy
+from copy import copy
 import numpy as np
 import pygame
 from math import sin, cos, atan, atan2, pi, sqrt
+import cv2
 
 
 class World:
 
-    shape = np.array([[[0,0], [19,0], [19,-9], [29,-9], [29,9], [0,9]],
-             [[0,0], [9,0], [9,39], [0,39]],
-             [[0,0], [9,0], [9,9], [18,9], [18,30], [9,30], [9,18], [0,18]],
-             [[0,0], [9,0], [9,29], [0,29], [0,19], [-9,19], [-9,9], [0,9]]],dtype=object)
+    shape = np.array([[[0,0], [1,0], [2,0], [2,1]],
+            [[0,0], [1,0], [2,0], [3,0]],
+            [[0,0], [0,1], [0,2], [1,1]],
+            [[0,0], [0,1], [1,1], [1,2]]],dtype=object)
     
+
     obstacle = []
     visited = []
+
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
+        self.env = np.zeros((128,128),dtype=int)
+        self.surface = np.zeros((self.width,self.height,3), dtype=int)
+
+
 
     def generate_random_tetromino(self) -> None:
-        start = np.array([np.random.randint(1,127), np.random.randint(1,127)])
+        possible_starts = np.argwhere(self.env == 0)
+        # print(np.shape(possible_starts))
+        # start = np.array([np.random.randint(3,124), np.random.randint(4,124)])
+        start = possible_starts[np.random.randint(0,len(possible_starts))]
+        # print(start)
         choose_shape = np.random.randint(0,4)
-        # choose_shape = 3
-        choose_orientation = np.random.randint(0,4)*(pi/2)
+        # choose_shape = 2
+        choose_orientation = np.random.randint(0,2)*(pi/2)
+        # choose_orientation = 2 * pi/2
         
         rot_matrix = np.array([[cos(choose_orientation), sin(choose_orientation)],
                                [-sin(choose_orientation), cos(choose_orientation)]])
         
         
-        new_obs = self.shape[choose_shape] @ rot_matrix + start*10
+        new_obs = np.array(self.shape[choose_shape] @ rot_matrix + start, dtype=int)
         
-        if [[choose_shape, choose_orientation, start]] not in self.visited:
-            self.obstacle.append(new_obs)
-            self.visited.append([choose_shape, choose_orientation, start])
+        original_env = copy(self.env)
+
+        greater = new_obs > 127
+        less = new_obs < 0
+
+        if greater.sum()>0 or less.sum()>0:
+            # print("Out of bounds")
+            flag = 0
+            self.env = original_env
         else:
-            print("Repeated pose")
+            for obs in new_obs:
+                flag = 1
+                if self.env[obs[0], obs[1]] == 1:
+                    self.env = original_env
+                    flag = 0
+                    break
+                else:
+                    self.env[obs[0], obs[1]] = 1
+
+        if flag:
+            self.surface[:,:,0] = np.array(cv2.resize(self.env*255, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
+            self.surface[:,:,1] = self.surface[:,:,0]
+            self.surface[:,:,2] = self.surface[:,:,0]
         
-        # self.obstacle = [new_obs]
-
-
-
-
-
 
 
 class Visualizer:
@@ -62,15 +86,12 @@ class Visualizer:
         self.font = pygame.font.SysFont('freesansbolf.tff', 30)
 
     def display_world(self):
-
-        for obs in self.world.obstacle:
-            # print(obs)
-            pygame.draw.polygon(self.screen, self.BLACK, obs)
-
+        # print((255 - self.world.surface).sum())
+        surf = pygame.pixelcopy.make_surface(255 - self.world.surface)
+        self.screen.blit(surf, (0,0))
 
 
     def update_display(self) -> bool:
-        self.screen.fill(self.WHITE)
 
         self.display_world()
 
@@ -89,36 +110,20 @@ class Runner:
         self.coverage = coverage
 
     def run(self):
-        running = True
-        old = 0
-        new = 400
+        self.world.env = np.zeros((128,128))
 
-        while len(self.world.obstacle) < 2731*self.coverage:
-            print(len(self.world.obstacle))
-            surf_array = np.zeros((1280,1280,3), dtype=int)
-            pygame.pixelcopy.surface_to_array(surf_array, self.vis.screen, kind='P', opaque=255, clear=0)
-            old = np.count_nonzero(surf_array[:,:,0]==0)
-            # print("Old value: ",old)
-            
+        while self.world.env.sum()/(128*128) < self.coverage:
+
             self.world.generate_random_tetromino()
 
+            print("Percent covered ", self.world.env.sum()/(128*128)*100, end='\r')
+
             self.vis.update_display()
-            surf_array_new = np.zeros((1280,1280,3), dtype=int)
-            pygame.pixelcopy.surface_to_array(surf_array_new, self.vis.screen, kind='P', opaque=255, clear=0)
-            
-            new = np.count_nonzero(surf_array_new[:,:,0]==0)
-            # print("New value: ",new)
-
-            if abs(new-old) <399:
-                self.world.obstacle = self.world.obstacle[:-1]
-                self.vis.update_display()
-
-            if not running:
-                pygame.quit()
-            
-            # time.sleep(0.02)
         
-        pygame.image.save(self.vis.screen, "ten.jpeg")
+        print("Percent covered ", self.world.env.sum()/(128*128)*100)
+
+        img_name = str(self.coverage) + '.jpeg'
+        pygame.image.save(self.vis.screen, img_name)
 
 def main():
     height = 1280
@@ -127,7 +132,7 @@ def main():
     world = World(width, height)
     vis = Visualizer(world)
 
-    coverage = 10
+    coverage = 30
     runner = Runner(world, vis, coverage/100)
 
     try:
