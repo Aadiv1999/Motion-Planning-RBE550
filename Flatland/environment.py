@@ -82,6 +82,7 @@ class Visualizer:
         self.screen = pygame.display.set_mode((world.width, world.height))
         pygame.display.set_caption('Tetromino Challenge')
         self.font = pygame.font.SysFont('freesansbolf.tff', 30)
+        self.screen.fill(self.WHITE)
 
     def display_world(self):
         # print((255 - self.world.surface).sum())
@@ -92,6 +93,12 @@ class Visualizer:
     def update_display(self) -> bool:
 
         self.display_world()
+
+        for event in pygame.event.get():
+            # Keypress
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE: # if escape is pressed, quit the program
+                    return False
 
         pygame.display.flip()
 
@@ -106,17 +113,20 @@ class Runner:
         self.world = world
         self.vis = vis
         self.coverage = coverage
+        
 
     def run(self):
         self.world.env = np.zeros((128,128))
+        running = True
 
-        while self.world.env.sum()/(128*128) < self.coverage:
+        while running:
 
-            self.world.generate_random_tetromino()
+            while self.world.env.sum()/(128*128) < self.coverage:
+                self.world.generate_random_tetromino()
 
-            print("Percent covered ", self.world.env.sum()/(128*128)*100, end='\r')
+                print("Percent covered ", self.world.env.sum()/(128*128)*100, end='\r')
 
-            self.vis.update_display()
+            running = self.vis.update_display()
         
         print("Percent covered ", self.world.env.sum()/(128*128)*100)
 
