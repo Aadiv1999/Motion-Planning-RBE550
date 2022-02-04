@@ -1,10 +1,10 @@
 """
 
-Depth-First grid planning
+Breadth-First grid planning
 
 author: Erwin Lejeune (@spida_rwin)
 
-See Wikipedia article (https://en.wikipedia.org/wiki/Depth-first_search)
+See Wikipedia article (https://en.wikipedia.org/wiki/Breadth-first_search)
 
 """
 
@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 show_animation = True
 
 
-class DepthFirstSearchPlanner:
+class BreadthFirstSearchPlanner:
 
-    def __init__(self, ox, oy, reso, rr):
+    def __init__(self, ox, oy, reso, rr, gx, gy, sx, sy):
         """
-        Initialize grid map for Depth-First planning
+        Initialize grid map for bfs planning
 
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
@@ -29,7 +29,7 @@ class DepthFirstSearchPlanner:
 
         self.reso = reso
         self.rr = rr
-        self.calc_obstacle_map(ox, oy)
+        self.calc_obstacle_map(ox, oy, gx, gy, sx, sy)
         self.motion = self.get_motion_model()
 
     class Node:
@@ -46,7 +46,7 @@ class DepthFirstSearchPlanner:
 
     def planning(self, sx, sy, gx, gy):
         """
-        Depth First search
+        Breadth First search based planning
 
         input:
             s_x: start x position [m]
@@ -54,8 +54,11 @@ class DepthFirstSearchPlanner:
             gx: goal x position [m]
             gy: goal y position [m]
 
-        output:
-            rx: x position list of the final path
+            if len(open_set) == 0:
+                print("Open set is empty..")
+                break
+
+            current = open_set.pop(list(open_set.keys())
             ry: y position list of the final path
         """
 
@@ -72,19 +75,23 @@ class DepthFirstSearchPlanner:
                 print("Open set is empty..")
                 break
 
-            current = open_set.pop(list(open_set.keys())[-1])
+            current = open_set.pop(list(open_set.keys())[0])
+
             c_id = self.calc_grid_index(current)
 
+            closed_set[c_id] = current
+
             # show graph
-            if show_animation:  # pragma: no cover
-                plt.plot(self.calc_grid_position(current.x, self.minx),
-                         self.calc_grid_position(current.y, self.miny), "xc")
-                # for stopping simulation with the esc key.
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                             lambda event:
-                                             [exit(0) if event.key == 'escape'
-                                              else None])
-                plt.pause(0.01)
+            # if show_animation:  # pragma: no cover
+            #     plt.plot(self.calc_grid_position(current.x, self.minx),
+            #              self.calc_grid_position(current.y, self.miny), "xc")
+            #     # for stopping simulation with the esc key.
+            #     plt.gcf().canvas.mpl_connect('key_release_event',
+            #                                  lambda event:
+            #                                  [exit(0) if event.key == 'escape'
+            #                                   else None])
+            #     if len(closed_set.keys()) % 10 == 0:
+            #         plt.pause(0.001)
 
             if current.x == ngoal.x and current.y == ngoal.y:
                 print("Find goal")
@@ -103,10 +110,9 @@ class DepthFirstSearchPlanner:
                 if not self.verify_node(node):
                     continue
 
-                if n_id not in closed_set:
-                    open_set[n_id] = node
-                    closed_set[n_id] = node
+                if (n_id not in closed_set) and (n_id not in open_set):
                     node.parent = current
+                    open_set[n_id] = node
 
         rx, ry = self.calc_final_path(ngoal, closed_set)
         return rx, ry
@@ -159,34 +165,43 @@ class DepthFirstSearchPlanner:
 
         return True
 
-    def calc_obstacle_map(self, ox, oy):
+    def calc_obstacle_map(self, ox, oy, gx, gy, sx, sy):
 
         self.minx = round(min(ox))
         self.miny = round(min(oy))
         self.maxx = round(max(ox))
         self.maxy = round(max(oy))
-        print("min_x:", self.minx)
-        print("min_y:", self.miny)
-        print("max_x:", self.maxx)
-        print("max_y:", self.maxy)
+        # print("min_x:", self.minx)
+        # print("min_y:", self.miny)
+        # print("max_x:", self.maxx)
+        # print("max_y:", self.maxy)
 
         self.xwidth = round((self.maxx - self.minx) / self.reso)
         self.ywidth = round((self.maxy - self.miny) / self.reso)
-        print("x_width:", self.xwidth)
-        print("y_width:", self.ywidth)
+        # print("x_width:", self.xwidth)
+        # print("y_width:", self.ywidth)
 
         # obstacle map generation
-        self.obmap = [[False for _ in range(self.ywidth)]
-                      for _ in range(self.xwidth)]
-        for ix in range(self.xwidth):
-            x = self.calc_grid_position(ix, self.minx)
-            for iy in range(self.ywidth):
-                y = self.calc_grid_position(iy, self.miny)
-                for iox, ioy in zip(ox, oy):
-                    d = math.hypot(iox - x, ioy - y)
-                    if d <= self.rr:
-                        self.obmap[ix][iy] = True
-                        break
+        try:
+            self.obmap = np.load("obstacle_map.npy")
+            print("File loaded")
+        except:
+
+            print("Generating obstacle map")
+            self.obmap = [[False for _ in range(self.ywidth)]
+                        for _ in range(self.xwidth)]
+
+            for ix in range(self.xwidth):
+                x = self.calc_grid_position(ix, self.minx)
+                for iy in range(self.ywidth):
+                    y = self.calc_grid_position(iy, self.miny)
+                    for iox, ioy in zip(ox, oy):
+                        d = math.hypot(iox - x, ioy - y)
+                        if d <= self.rr:
+                            self.obmap[ix][iy] = True
+                            break
+            
+            np.save("obstacle_map", self.obmap)
 
     @staticmethod
     def get_motion_model():
@@ -194,53 +209,32 @@ class DepthFirstSearchPlanner:
         motion = [[1, 0, 1],
                   [0, 1, 1],
                   [-1, 0, 1],
-                  [0, -1, 1],
-                  [-1, -1, math.sqrt(2)],
-                  [-1, 1, math.sqrt(2)],
-                  [1, -1, math.sqrt(2)],
-                  [1, 1, math.sqrt(2)]]
+                  [0, -1, 1]]
 
         return motion
 
 
 def main():
-    print(__file__ + " start!!")
 
     # start and goal position
-    sx = 0.0  # [m]
-    sy = 125.0  # [m]
-    gx = 124.0  # [m]
-    gy = 5.0  # [m]
+    sx = 1  # [m]
+    sy = 126  # [m]
+    gx = 125  # [m]
+    gy = 6  # [m]
     grid_size = 1.0  # [m]
-    robot_radius = 1.0  # [m]
+    robot_radius = 0.5  # [m]
 
-    obs = np.load("env.npy")
+    # set obstacle positions
+    try:
+        obs = np.load("env.npy")
+    except:
+        print("No file, abort")
+        return
 
     obs_idx = np.argwhere(obs == 1)
-    ox = obs_idx[:,0]
-    oy = obs_idx[:,1]
-
-    # # set obstacle positions
-    # ox, oy = [], []
-    # for i in range(-10, 60):
-    #     ox.append(i)
-    #     oy.append(-10.0)
-    # for i in range(-10, 60):
-    #     ox.append(60.0)
-    #     oy.append(i)
-    # for i in range(-10, 61):
-    #     ox.append(i)
-    #     oy.append(60.0)
-    # for i in range(-10, 61):
-    #     ox.append(-10.0)
-    #     oy.append(i)
-    # for i in range(-10, 40):
-    #     ox.append(20.0)
-    #     oy.append(i)
-    # for i in range(0, 40):
-    #     ox.append(40.0)
-    #     oy.append(60.0 - i)
-
+    ox = np.array(obs_idx[:,0])
+    oy = max(ox) - np.array(obs_idx[:,1])
+    
     if show_animation:  # pragma: no cover
         plt.plot(ox, oy, ".k")
         plt.plot(sx, sy, "og")
@@ -248,12 +242,16 @@ def main():
         plt.grid(True)
         plt.axis("equal")
 
-    dfs = DepthFirstSearchPlanner(ox, oy, grid_size, robot_radius)
-    rx, ry = dfs.planning(sx, sy, gx, gy)
+    bfs = BreadthFirstSearchPlanner(ox, oy, grid_size, robot_radius, gx, gy, sx, sy)
+    rx, ry = bfs.planning(sx, sy, gx, gy)
+    
+    path = np.flip(np.vstack((rx,ry)).T, axis=0)
+    print("First is:", path[-1])
+    np.save("path_bfs.npy", path)
 
     if show_animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")
-        plt.pause(0.01)
+        plt.pause(1)
         plt.show()
 
 

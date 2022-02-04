@@ -1,10 +1,10 @@
 """
 
-Breadth-First grid planning
+Depth-First grid planning
 
 author: Erwin Lejeune (@spida_rwin)
 
-See Wikipedia article (https://en.wikipedia.org/wiki/Breadth-first_search)
+See Wikipedia article (https://en.wikipedia.org/wiki/Depth-first_search)
 
 """
 
@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 show_animation = True
 
 
-class BreadthFirstSearchPlanner:
+class DepthFirstSearchPlanner:
 
     def __init__(self, ox, oy, reso, rr):
         """
-        Initialize grid map for bfs planning
+        Initialize grid map for Depth-First planning
 
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
@@ -46,7 +46,7 @@ class BreadthFirstSearchPlanner:
 
     def planning(self, sx, sy, gx, gy):
         """
-        Breadth First search based planning
+        Depth First search
 
         input:
             s_x: start x position [m]
@@ -72,11 +72,8 @@ class BreadthFirstSearchPlanner:
                 print("Open set is empty..")
                 break
 
-            current = open_set.pop(list(open_set.keys())[0])
-
+            current = open_set.pop(list(open_set.keys())[-1])
             c_id = self.calc_grid_index(current)
-
-            closed_set[c_id] = current
 
             # show graph
             if show_animation:  # pragma: no cover
@@ -87,8 +84,7 @@ class BreadthFirstSearchPlanner:
                                              lambda event:
                                              [exit(0) if event.key == 'escape'
                                               else None])
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
+                plt.pause(0.01)
 
             if current.x == ngoal.x and current.y == ngoal.y:
                 print("Find goal")
@@ -107,9 +103,10 @@ class BreadthFirstSearchPlanner:
                 if not self.verify_node(node):
                     continue
 
-                if (n_id not in closed_set) and (n_id not in open_set):
-                    node.parent = current
+                if n_id not in closed_set:
                     open_set[n_id] = node
+                    closed_set[n_id] = node
+                    node.parent = current
 
         rx, ry = self.calc_final_path(ngoal, closed_set)
         return rx, ry
@@ -210,21 +207,19 @@ def main():
     print(__file__ + " start!!")
 
     # start and goal position
-    sx = 64.0  # [m]
-    sy = 64.0  # [m]
-    gx = 127.0  # [m]
-    gy = 0.0  # [m]
+    sx = 0.0  # [m]
+    sy = 125.0  # [m]
+    gx = 5.0  # [m]
+    gy = 124.0  # [m]
     grid_size = 1.0  # [m]
     robot_radius = 1.0  # [m]
 
-    # set obstacle positions
-    
     obs = np.load("env.npy")
 
     obs_idx = np.argwhere(obs == 1)
     ox = obs_idx[:,0]
     oy = obs_idx[:,1]
-    
+
     if show_animation:  # pragma: no cover
         plt.plot(ox, oy, ".k")
         plt.plot(sx, sy, "og")
@@ -232,8 +227,8 @@ def main():
         plt.grid(True)
         plt.axis("equal")
 
-    bfs = BreadthFirstSearchPlanner(ox, oy, grid_size, robot_radius)
-    rx, ry = bfs.planning(sx, sy, gx, gy)
+    dfs = DepthFirstSearchPlanner(ox, oy, grid_size, robot_radius)
+    rx, ry = dfs.planning(sx, sy, gx, gy)
 
     if show_animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")

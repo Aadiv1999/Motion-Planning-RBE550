@@ -32,6 +32,23 @@ class Robot:
         return self.surface
 
 
+class Controller:
+    def __init__(self, robot: Robot, path) -> None:
+        self.robot = robot
+        self.path_x = path[:,0]
+        self.path_y = 127 - np.array(path[:,1])
+        self.counter = 0
+    
+    def step(self):
+        self.robot.x_coord = int(self.path_x[self.counter])
+        self.robot.y_coord = int(self.path_y[self.counter])
+
+        # print("X coord: ", self.robot.x_coord)
+        # print("Y coord: ", self.robot.y_coord)
+        if self.counter < len(self.path_x)-1:
+            self.counter += 1
+
+
 class World:
 
     shape = np.array([[[0,0], [1,0], [2,0], [2,1]],
@@ -53,6 +70,12 @@ class World:
     def convert_to_display(self, x_coord, y_coord):
         return (self.width/128)*np.array([x_coord, y_coord]) + [5,5]
 
+    def set_surface(self):
+        # print(type(self.env[0,0]))
+        self.surface[:,:,0] = np.array(cv2.resize(self.env*255, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
+        self.surface[:,:,1] = self.surface[:,:,0]
+        self.surface[:,:,2] = self.surface[:,:,0]
+        self.surface = 255 - self.surface
 
     def generate_random_tetromino(self) -> None:
         possible_starts = np.argwhere(self.env == 0)
@@ -89,36 +112,57 @@ class World:
                     self.env[obs[0], obs[1]] = 1
 
         if flag:
-            # print(type(self.env[0,0]))
-            self.surface[:,:,0] = np.array(cv2.resize(self.env*255, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
-            self.surface[:,:,1] = self.surface[:,:,0]
-            self.surface[:,:,2] = self.surface[:,:,0]
-            self.surface = 255 - self.surface
+            self.set_surface()
         
 
+class Telemetry:
+    def __init__(self, robot: Robot, world: World) -> None:
+        self.points = []
+        self.robot = robot
+        self.width = world.width
+        self.height = world.height
+        self.trace = np.zeros((self.width,self.height,3), dtype=int)
+    
+    def update_telemetry(self) -> None:
+        self.points.append([self.robot.x_coord, self.robot.y_coord])
+    
+    def set_trace(self):
+        env = np.zeros((128,128),dtype='float64')
+        for point in self.points:
+            env[point[0],point[1]] = 255
+        # self.env[self.points[0,:],self.points[1,:]] = 255
+        self.trace[:,:,1] = np.array(cv2.resize(env, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
+        self.trace[:,:,2] = self.trace[:,:,1]
+        # self.trace = 255 - self.trace
+        return self.trace
 
 class Visualizer:
     BLACK: Tuple[int, int, int] = (0, 0, 0)
     RED: Tuple[int, int, int] = (255, 0, 0)
+    GREEN: Tuple[int, int, int] = (0, 255, 0)
     INV_RED: Tuple[int, int, int] = (0, 255, 255)
     WHITE: Tuple[int, int, int] = (255, 255, 255)
     BLUE: Tuple[int, int, int] = (0, 0, 255)
 
-    def __init__(self, robot: Robot, world: World) -> None:
+    def __init__(self, robot: Robot, controller: Controller, telemetry: Telemetry, world: World) -> None:
         pygame.init()
         pygame.font.init()
         self.world = world
         self.robot = robot
+        self.telemetry = telemetry
+        self.controller = controller
         self.screen = pygame.display.set_mode((world.width, world.height))
         pygame.display.set_caption('Tetromino Challenge')
         self.font = pygame.font.SysFont('freesansbolf.tff', 30)
 
     def display_world(self):
         # print((255 - self.world.surface))
-        surf = pygame.pixelcopy.make_surface(self.world.surface-self.robot.robot_map())
+        surf_array = self.world.surface-self.robot.robot_map()-self.telemetry.set_trace()
+        surf = pygame.pixelcopy.make_surface(surf_array)
         self.screen.blit(surf, (0,0))
+
         center = self.world.convert_to_display(self.robot.x_coord, self.robot.y_coord)
-        pygame.draw.circle(self.screen, self.BLUE, center, 10, 2)
+        pygame.draw.circle(self.screen, self.RED, center, 10, 2)
         top_left = (self.world.width/128)*np.array([self.robot.x_coord, self.robot.y_coord])
         pygame.draw.rect(self.screen, self.BLUE, pygame.Rect(top_left[0], top_left[1], 10, 10), 2)
 
@@ -133,8 +177,10 @@ class Visualizer:
                 if event.key == pygame.K_ESCAPE: # if escape is pressed, quit the program
                     return False
                 if event.key == pygame.K_UP:
-                    self.robot.x_coord = 0
-                    self.robot.y_coord = 0
+                    self.robot.x_coord = self.controller.path_x[0]
+                    self.robot.y_coord = self.controller.path_y[0]
+                    self.controller.counter = 0
+                    self.telemetry.points = []
 
         pygame.display.flip()
 
@@ -145,32 +191,37 @@ class Visualizer:
 
 
 class Runner:
-    def __init__(self, robot: Robot, world: World, vis: Visualizer, coverage: int) -> None:
+    def __init__(self, robot: Robot, controller: Controller, telemetry: Telemetry, world: World, vis: Visualizer, coverage: int) -> None:
         self.robot = robot
         self.world = world
         self.vis = vis
+        self.controller = controller
         self.coverage = coverage
+        self.telemetry = telemetry
         
 
     def run(self):
         self.world.env = np.zeros((128,128))
         running = True
+        generate = False
 
         while running:
 
-            while self.world.env.sum()/(128*128) < self.coverage:
-                self.world.generate_random_tetromino()
-                print("Generating environment, percent covered: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
+            if generate:
+                while self.world.env.sum()/(128*128) < self.coverage:
+                    self.world.generate_random_tetromino()
+                    print("Generating environment, percent covered: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
+                np.save("env.npy", self.world.env)
+            else:
+                self.world.env = np.load("env.npy")
+                self.world.set_surface()              
 
-            np.save("env.npy", self.world.env)
-            
-            if self.robot.x_coord < 127:
-                self.robot.x_coord += 1
-                self.robot.y_coord += 1
+            self.controller.step()
+            self.telemetry.update_telemetry()
 
             running = self.vis.update_display()
 
-            time.sleep(0.1)
+            # time.sleep(0.01)
         
 
         img_name = str(self.coverage) + '.jpeg'
@@ -179,13 +230,19 @@ class Runner:
 def main():
     height = int(1280*0.75)
     width = int(1280*0.75)
+    path = np.load("path_bfs.npy")
     
     robot = Robot(width, height)
+    controller = Controller(robot, path)
+    1
     world = World(robot, width, height)
-    vis = Visualizer(robot, world)
+    telemetry = Telemetry(robot, world)
+    vis = Visualizer(robot, controller, telemetry, world)
 
-    coverage = 30
-    runner = Runner(robot, world, vis, coverage/100)
+    coverage = 15
+    runner = Runner(robot, controller, telemetry, world, vis, coverage/100)
+
+    
 
     try:
         runner.run()
