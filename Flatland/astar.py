@@ -18,24 +18,30 @@ show_animation = True
 
 class AStarPlanner:
 
-    def __init__(self, ox, oy, resolution, rr):
+    def __init__(self, ox, oy, obs_map):
         """
         Initialize grid map for a star planning
 
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
-        resolution: grid resolution [m]
+        reso: grid reso [m]
         rr: robot radius[m]
         """
 
-        self.resolution = resolution
-        self.rr = rr
-        self.min_x, self.min_y = 0, 0
-        self.max_x, self.max_y = 0, 0
-        self.obstacle_map = None
-        self.x_width, self.y_width = 0, 0
+        self.reso = 1
+        self.rr = 0.5
+
+        self.obstacle_map = obs_map
         self.motion = self.get_motion_model()
-        self.calc_obstacle_map(ox, oy)
+        
+        self.min_x = round(min(ox))
+        self.min_y = round(min(oy))
+        self.max_x = round(max(ox))
+        self.max_y = round(max(oy))
+
+
+        self.x_width = round((self.max_x - self.min_x) / self.reso)
+        self.y_width = round((self.max_y - self.min_y) / self.reso)
 
     class Node:
         def __init__(self, x, y, cost, parent_index):
@@ -82,17 +88,6 @@ class AStarPlanner:
                                                                      open_set[
                                                                          o]))
             current = open_set[c_id]
-
-            # show graph
-            if show_animation:  # pragma: no cover
-                plt.plot(self.calc_grid_position(current.x, self.min_x),
-                         self.calc_grid_position(current.y, self.min_y), "xc")
-                # for stopping simulation with the esc key.
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                             lambda event: [exit(
-                                                 0) if event.key == 'escape' else None])
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
 
             if current.x == goal_node.x and current.y == goal_node.y:
                 print("Find goal")
@@ -158,11 +153,11 @@ class AStarPlanner:
         :param min_position:
         :return:
         """
-        pos = index * self.resolution + min_position
+        pos = index * self.reso + min_position
         return pos
 
     def calc_xy_index(self, position, min_pos):
-        return round((position - min_pos) / self.resolution)
+        return round((position - min_pos) / self.reso)
 
     def calc_grid_index(self, node):
         return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
@@ -192,15 +187,11 @@ class AStarPlanner:
         self.min_y = round(min(oy))
         self.max_x = round(max(ox))
         self.max_y = round(max(oy))
-        print("min_x:", self.min_x)
-        print("min_y:", self.min_y)
-        print("max_x:", self.max_x)
-        print("max_y:", self.max_y)
 
-        self.x_width = round((self.max_x - self.min_x) / self.resolution)
-        self.y_width = round((self.max_y - self.min_y) / self.resolution)
-        print("x_width:", self.x_width)
-        print("y_width:", self.y_width)
+
+        self.x_width = round((self.max_x - self.min_x) / self.reso)
+        self.y_width = round((self.max_y - self.min_y) / self.reso)
+
 
         # obstacle map generation
         self.obstacle_map = [[False for _ in range(self.y_width)]
@@ -226,59 +217,3 @@ class AStarPlanner:
         return motion
 
 
-def main():
-    print(__file__ + " start!!")
-
-    # start and goal position
-    sx = 0.0  # [m]
-    sy = 127.0  # [m]
-    gx = 125.0  # [m]
-    gy = 5.0  # [m]
-    grid_size = 1.0  # [m]
-    robot_radius = 0.5  # [m]
-
-    obs = np.load("env.npy")
-
-    obs_idx = np.argwhere(obs == 1)
-    ox = obs_idx[:,0]
-    oy = obs_idx[:,1]
-
-    # set obstacle positions
-    # ox, oy = [], []
-    # for i in range(-10, 60):
-    #     ox.append(i)
-    #     oy.append(-10.0)
-    # for i in range(-10, 60):
-    #     ox.append(60.0)
-    #     oy.append(i)
-    # for i in range(-10, 61):
-    #     ox.append(i)
-    #     oy.append(60.0)
-    # for i in range(-10, 61):
-    #     ox.append(-10.0)
-    #     oy.append(i)
-    # for i in range(-10, 40):
-    #     ox.append(20.0)
-    #     oy.append(i)
-    # for i in range(0, 40):
-    #     ox.append(40.0)
-    #     oy.append(60.0 - i)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(ox, oy, ".k")
-        plt.plot(sx, sy, "og")
-        plt.plot(gx, gy, "xb")
-        plt.grid(True)
-        plt.axis("equal")
-
-    a_star = AStarPlanner(ox, oy, grid_size, robot_radius)
-    rx, ry = a_star.planning(sx, sy, gx, gy)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(rx, ry, "-r")
-        plt.pause(0.001)
-        plt.show()
-
-
-if __name__ == '__main__':
-    main()

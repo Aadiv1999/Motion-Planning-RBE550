@@ -1,14 +1,18 @@
 from operator import truediv
 from pickletools import uint8
 import time
-from tkinter import Toplevel
+
 from turtle import width, window_width
 from typing import List, Tuple, Union
 from copy import copy
 import numpy as np
 import pygame
-from math import sin, cos, atan, atan2, pi, sqrt
+from math import sin, cos, atan, atan2, pi, sqrt, hypot
 import cv2
+from bfs import BreadthFirstSearchPlanner
+from dfs import DepthFirstSearchPlanner
+from dijkstra import Dijkstra
+from astar import AStarPlanner
 
 class Robot:
     x_coord: int
@@ -33,10 +37,17 @@ class Robot:
 
 
 class Controller:
-    def __init__(self, robot: Robot, path) -> None:
+    def __init__(self, robot: Robot, sx, sy, gx, gy) -> None:
         self.robot = robot
-        self.path_x = path[:,0]
-        self.path_y = 127 - np.array(path[:,1])
+        # self.path_x = path[:,0]
+        # self.path_y = 127 - np.array(path[:,1])
+        self.start_x = sx
+        self.start_y = sy
+        self.goal_x = gx
+        self.goal_y = gy
+
+        self.path_x = np.array([0])
+        self.path_y = np.array([0])
         self.counter = 0
     
     def step(self):
@@ -203,15 +214,52 @@ class Runner:
     def run(self):
         self.world.env = np.zeros((128,128))
         running = True
-        generate = False
+        generate_path = True
+        generate_new_map = False
 
         while running:
 
-            if generate:
-                while self.world.env.sum()/(128*128) < self.coverage:
-                    self.world.generate_random_tetromino()
-                    print("Generating environment, percent covered: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
-                np.save("env.npy", self.world.env)
+            if generate_path:
+                if generate_new_map:
+                    while self.world.env.sum()/(128*128) < self.coverage:
+                        self.world.generate_random_tetromino()
+                        print("Generating environment, percent covered: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
+                    np.save("env.npy", self.world.env)
+                    print("\n")
+
+                    obs = np.load("env.npy")
+                    
+                    obs_idx = np.argwhere(obs == 1)
+                    ox = np.array(obs_idx[:,0])
+                    oy = max(ox) - np.array(obs_idx[:,1])
+                    obs_map = calc_obstacle_map(ox, oy)
+                    np.save("obstacle_map", obs_map)
+                    print("Obstacle map generated")
+                    generate_new_map = False
+
+                # generate path
+                print("Generating Path")
+                obs = np.load("env.npy")
+                obs_idx = np.argwhere(obs == 1)
+                ox = np.array(obs_idx[:,0])
+                oy = max(ox) - np.array(obs_idx[:,1])
+                obs_map = np.load("obstacle_map.npy")
+                
+                planner = BreadthFirstSearchPlanner(ox, oy, obs_map)
+                planner = DepthFirstSearchPlanner(ox, oy, obs_map)
+                planner = Dijkstra(ox, oy, obs_map)
+                planner = AStarPlanner(ox, oy, obs_map)
+
+                rx, ry = planner.planning(self.controller.start_x,
+                                      self.controller.start_y,
+                                      self.controller.goal_x,
+                                      self.controller.goal_y)
+
+
+                self.controller.path_x = np.flip(rx)
+                self.controller.path_y = 127 - np.flip(ry)
+                generate_path = False
+
             else:
                 self.world.env = np.load("env.npy")
                 self.world.set_surface()              
@@ -227,14 +275,46 @@ class Runner:
         img_name = str(self.coverage) + '.jpeg'
         pygame.image.save(self.vis.screen, img_name)
 
+
+def calc_obstacle_map(ox, oy):
+
+    minx = round(min(ox))
+    miny = round(min(oy))
+    maxx = round(max(ox))
+    maxy = round(max(oy))
+    rr = 0.5
+    reso = 1
+
+    xwidth = round((maxx - minx) / reso)
+    ywidth = round((maxy - miny) / reso)
+
+    # obstacle map generation
+    print("Generating obstacle map")
+    obmap = [[False for _ in range(ywidth)]
+                for _ in range(xwidth)]
+
+    for ix in range(xwidth):
+        x = ix * reso + minx
+        for iy in range(ywidth):
+            y = iy * reso + miny
+            for iox, ioy in zip(ox, oy):
+                d = hypot(iox - x, ioy - y)
+                if d <= rr:
+                    obmap[ix][iy] = True
+                    break
+    return obmap
+
+
 def main():
     height = int(1280*0.75)
     width = int(1280*0.75)
-    path = np.load("path_bfs.npy")
+    sx, sy = 1, 126
+    gx, gy = 125, 1
+    path = np.zeros((100,2))
     
     robot = Robot(width, height)
-    controller = Controller(robot, path)
-    1
+    controller = Controller(robot, sx, sy, gx, gy)
+    
     world = World(robot, width, height)
     telemetry = Telemetry(robot, world)
     vis = Visualizer(robot, controller, telemetry, world)

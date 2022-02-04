@@ -17,7 +17,7 @@ show_animation = True
 
 class BreadthFirstSearchPlanner:
 
-    def __init__(self, ox, oy, reso, rr, gx, gy, sx, sy):
+    def __init__(self, ox, oy, obs_map):
         """
         Initialize grid map for bfs planning
 
@@ -27,10 +27,17 @@ class BreadthFirstSearchPlanner:
         rr: robot radius[m]
         """
 
-        self.reso = reso
-        self.rr = rr
-        self.calc_obstacle_map(ox, oy, gx, gy, sx, sy)
+        self.reso = 1
+        self.rr = 0.5
+        self.obmap = obs_map
         self.motion = self.get_motion_model()
+        self.minx = round(min(ox))
+        self.miny = round(min(oy))
+        self.maxx = round(max(ox))
+        self.maxy = round(max(oy))
+
+        self.xwidth = round((self.maxx - self.minx) / self.reso)
+        self.ywidth = round((self.maxy - self.miny) / self.reso)
 
     class Node:
         def __init__(self, x, y, cost, parent_index, parent):
@@ -81,20 +88,8 @@ class BreadthFirstSearchPlanner:
 
             closed_set[c_id] = current
 
-            # show graph
-            # if show_animation:  # pragma: no cover
-            #     plt.plot(self.calc_grid_position(current.x, self.minx),
-            #              self.calc_grid_position(current.y, self.miny), "xc")
-            #     # for stopping simulation with the esc key.
-            #     plt.gcf().canvas.mpl_connect('key_release_event',
-            #                                  lambda event:
-            #                                  [exit(0) if event.key == 'escape'
-            #                                   else None])
-            #     if len(closed_set.keys()) % 10 == 0:
-            #         plt.pause(0.001)
-
             if current.x == ngoal.x and current.y == ngoal.y:
-                print("Find goal")
+                print("Finding goal")
                 ngoal.parent_index = current.parent_index
                 ngoal.cost = current.cost
                 break
@@ -165,44 +160,6 @@ class BreadthFirstSearchPlanner:
 
         return True
 
-    def calc_obstacle_map(self, ox, oy, gx, gy, sx, sy):
-
-        self.minx = round(min(ox))
-        self.miny = round(min(oy))
-        self.maxx = round(max(ox))
-        self.maxy = round(max(oy))
-        # print("min_x:", self.minx)
-        # print("min_y:", self.miny)
-        # print("max_x:", self.maxx)
-        # print("max_y:", self.maxy)
-
-        self.xwidth = round((self.maxx - self.minx) / self.reso)
-        self.ywidth = round((self.maxy - self.miny) / self.reso)
-        # print("x_width:", self.xwidth)
-        # print("y_width:", self.ywidth)
-
-        # obstacle map generation
-        try:
-            self.obmap = np.load("obstacle_map.npy")
-            print("File loaded")
-        except:
-
-            print("Generating obstacle map")
-            self.obmap = [[False for _ in range(self.ywidth)]
-                        for _ in range(self.xwidth)]
-
-            for ix in range(self.xwidth):
-                x = self.calc_grid_position(ix, self.minx)
-                for iy in range(self.ywidth):
-                    y = self.calc_grid_position(iy, self.miny)
-                    for iox, ioy in zip(ox, oy):
-                        d = math.hypot(iox - x, ioy - y)
-                        if d <= self.rr:
-                            self.obmap[ix][iy] = True
-                            break
-            
-            np.save("obstacle_map", self.obmap)
-
     @staticmethod
     def get_motion_model():
         # dx, dy, cost
@@ -212,48 +169,3 @@ class BreadthFirstSearchPlanner:
                   [0, -1, 1]]
 
         return motion
-
-
-def main():
-
-    # start and goal position
-    sx = 1  # [m]
-    sy = 126  # [m]
-    gx = 125  # [m]
-    gy = 6  # [m]
-    grid_size = 1.0  # [m]
-    robot_radius = 0.5  # [m]
-
-    # set obstacle positions
-    try:
-        obs = np.load("env.npy")
-    except:
-        print("No file, abort")
-        return
-
-    obs_idx = np.argwhere(obs == 1)
-    ox = np.array(obs_idx[:,0])
-    oy = max(ox) - np.array(obs_idx[:,1])
-    
-    if show_animation:  # pragma: no cover
-        plt.plot(ox, oy, ".k")
-        plt.plot(sx, sy, "og")
-        plt.plot(gx, gy, "xb")
-        plt.grid(True)
-        plt.axis("equal")
-
-    bfs = BreadthFirstSearchPlanner(ox, oy, grid_size, robot_radius, gx, gy, sx, sy)
-    rx, ry = bfs.planning(sx, sy, gx, gy)
-    
-    path = np.flip(np.vstack((rx,ry)).T, axis=0)
-    print("First is:", path[-1])
-    np.save("path_bfs.npy", path)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(rx, ry, "-r")
-        plt.pause(1)
-        plt.show()
-
-
-if __name__ == '__main__':
-    main()

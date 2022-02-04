@@ -15,28 +15,27 @@ show_animation = True
 
 class Dijkstra:
 
-    def __init__(self, ox, oy, resolution, robot_radius):
+    def __init__(self, ox, oy, obs_map):
         """
         Initialize map for a star planning
 
         ox: x position list of Obstacles [m]
         oy: y position list of Obstacles [m]
-        resolution: grid resolution [m]
+        reso: grid reso [m]
         rr: robot radius[m]
         """
-
-        self.min_x = None
-        self.min_y = None
-        self.max_x = None
-        self.max_y = None
-        self.x_width = None
-        self.y_width = None
-        self.obstacle_map = None
-
-        self.resolution = resolution
-        self.robot_radius = robot_radius
-        self.calc_obstacle_map(ox, oy)
+        self.reso = 1
+        self.robot_radius = 0.5
         self.motion = self.get_motion_model()
+        self.min_x = round(min(ox))
+        self.min_y = round(min(oy))
+        self.max_x = round(max(ox))
+        self.max_y = round(max(oy))
+
+        self.x_width = round((self.max_x - self.min_x) / self.reso)
+        self.y_width = round((self.max_y - self.min_y) / self.reso)
+
+        self.obstacle_map = obs_map
 
     class Node:
         def __init__(self, x, y, cost, parent_index):
@@ -76,16 +75,6 @@ class Dijkstra:
             c_id = min(open_set, key=lambda o: open_set[o].cost)
             current = open_set[c_id]
 
-            # show graph
-            if show_animation:  # pragma: no cover
-                plt.plot(self.calc_position(current.x, self.min_x),
-                         self.calc_position(current.y, self.min_y), "xc")
-                # for stopping simulation with the esc key.
-                plt.gcf().canvas.mpl_connect(
-                    'key_release_event',
-                    lambda event: [exit(0) if event.key == 'escape' else None])
-                if len(closed_set.keys()) % 10 == 0:
-                    plt.pause(0.001)
 
             if current.x == goal_node.x and current.y == goal_node.y:
                 print("Find goal")
@@ -137,11 +126,11 @@ class Dijkstra:
         return rx, ry
 
     def calc_position(self, index, minp):
-        pos = index * self.resolution + minp
+        pos = index * self.reso + minp
         return pos
 
     def calc_xy_index(self, position, minp):
-        return round((position - minp) / self.resolution)
+        return round((position - minp) / self.reso)
 
     def calc_index(self, node):
         return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
@@ -164,107 +153,11 @@ class Dijkstra:
 
         return True
 
-    def calc_obstacle_map(self, ox, oy):
-
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
-        print("min_x:", self.min_x)
-        print("min_y:", self.min_y)
-        print("max_x:", self.max_x)
-        print("max_y:", self.max_y)
-
-        self.x_width = round((self.max_x - self.min_x) / self.resolution)
-        self.y_width = round((self.max_y - self.min_y) / self.resolution)
-        print("x_width:", self.x_width)
-        print("y_width:", self.y_width)
-
-        # obstacle map generation
-        self.obstacle_map = [[False for _ in range(self.y_width)]
-                             for _ in range(self.x_width)]
-        for ix in range(self.x_width):
-            x = self.calc_position(ix, self.min_x)
-            for iy in range(self.y_width):
-                y = self.calc_position(iy, self.min_y)
-                for iox, ioy in zip(ox, oy):
-                    d = math.hypot(iox - x, ioy - y)
-                    if d <= self.robot_radius:
-                        self.obstacle_map[ix][iy] = True
-                        break
-
     @staticmethod
     def get_motion_model():
-        # dx, dy, cost
-        # motion = [[1, 0, 1],
-        #           [0, 1, 1],
-        #           [-1, 0, 1],
-        #           [0, -1, 1],
-        #           [-1, -1, math.sqrt(2)],
-        #           [-1, 1, math.sqrt(2)],
-        #           [1, -1, math.sqrt(2)],
-        #           [1, 1, math.sqrt(2)]]
         motion = [[1, 0, 1],
                   [0, 1, 1],
                   [-1, 0, 1],
                   [0, -1, 1]]
 
         return motion
-
-
-def main():
-    print(__file__ + " start!!")
-
-    # start and goal position
-    sx = 0.0  # [m]
-    sy = 127.0  # [m]
-    gx = 125.0  # [m]
-    gy = 5.0  # [m]
-    grid_size = 1.0  # [m]
-    robot_radius = 0.5  # [m]
-
-    obs = np.load("env.npy")
-
-    obs_idx = np.argwhere(obs == 1)
-    ox = obs_idx[:,0]
-    oy = obs_idx[:,1]
-    
-    # set obstacle positions
-    # ox, oy = [], []
-    # for i in range(-10, 60):
-    #     ox.append(i)
-    #     oy.append(-10.0)
-    # for i in range(-10, 60):
-    #     ox.append(60.0)
-    #     oy.append(i)
-    # for i in range(-10, 61):
-    #     ox.append(i)
-    #     oy.append(60.0)
-    # for i in range(-10, 61):
-    #     ox.append(-10.0)
-    #     oy.append(i)
-    # for i in range(-10, 40):
-    #     ox.append(20.0)
-    #     oy.append(i)
-    # for i in range(0, 40):
-    #     ox.append(40.0)
-    #     oy.append(60.0 - i)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(ox, oy, ".k")
-        plt.plot(sx, sy, "og")
-        plt.plot(gx, gy, "xb")
-        plt.grid(True)
-        plt.axis("equal")
-
-    dijkstra = Dijkstra(ox, oy, grid_size, robot_radius)
-    rx, ry = dijkstra.planning(sx, sy, gx, gy)
-
-    if show_animation:  # pragma: no cover
-        plt.plot(rx, ry, "-r")
-        plt.pause(0.01)
-        plt.show()
-
-
-if __name__ == '__main__':
-    main()
