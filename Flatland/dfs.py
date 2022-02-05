@@ -31,10 +31,10 @@ class DepthFirstSearchPlanner:
         self.rr = 0.5
         self.obmap = obs_map
         self.motion = self.get_motion_model()
-        self.minx = round(min(ox))
-        self.miny = round(min(oy))
-        self.maxx = round(max(ox))
-        self.maxy = round(max(oy))
+        self.minx = 0
+        self.miny = 0
+        self.maxx = 127
+        self.maxy = 127
 
         self.xwidth = round((self.maxx - self.minx) / self.reso)
         self.ywidth = round((self.maxy - self.miny) / self.reso)
@@ -77,14 +77,14 @@ class DepthFirstSearchPlanner:
         while 1:
             if len(open_set) == 0:
                 print("Open set is empty..")
-                break
+                return np.array([0]), np.array([127])
 
             current = open_set.pop(list(open_set.keys())[-1])
             c_id = self.calc_grid_index(current)
 
 
             if current.x == ngoal.x and current.y == ngoal.y:
-                print("Finding goal")
+                # print("Finding goal")
                 ngoal.parent_index = current.parent_index
                 ngoal.cost = current.cost
                 break
@@ -112,7 +112,10 @@ class DepthFirstSearchPlanner:
         # generate final course
         rx, ry = [self.calc_grid_position(ngoal.x, self.minx)], [
             self.calc_grid_position(ngoal.y, self.miny)]
-        n = closedset[ngoal.parent_index]
+        try:
+            n = closedset[ngoal.parent_index]
+        except:
+            return np.array([0]), np.array([127])
         while n is not None:
             rx.append(self.calc_grid_position(n.x, self.minx))
             ry.append(self.calc_grid_position(n.y, self.miny))
@@ -162,6 +165,10 @@ class DepthFirstSearchPlanner:
         motion = [[1, 0, 1],
                   [0, 1, 1],
                   [-1, 0, 1],
-                  [0, -1, 1]]
+                  [0, -1, 1],
+                  [1, 1, math.sqrt(2)],
+                  [1, -1, math.sqrt(2)],
+                  [-1, -1, math.sqrt(2)],
+                  [-1, 1, math.sqrt(2)]]
 
         return motion

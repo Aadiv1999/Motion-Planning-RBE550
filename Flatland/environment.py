@@ -1,17 +1,15 @@
-from operator import truediv
-from pickletools import uint8
 import time
 
-from turtle import width, window_width
 from typing import List, Tuple, Union
 from copy import copy
+from matplotlib import pyplot as plt
 import numpy as np
 import pygame
 from math import sin, cos, atan, atan2, pi, sqrt, hypot
 import cv2
 from bfs import BreadthFirstSearchPlanner
 from dfs import DepthFirstSearchPlanner
-from dijkstra import Dijkstra
+from dijkstra import DijkstraPlanner
 from astar import AStarPlanner
 
 class Robot:
@@ -173,7 +171,9 @@ class Visualizer:
         self.screen.blit(surf, (0,0))
 
         center = self.world.convert_to_display(self.robot.x_coord, self.robot.y_coord)
+        goal = self.world.convert_to_display(self.controller.goal_x,127-self.controller.goal_y)
         pygame.draw.circle(self.screen, self.RED, center, 10, 2)
+        pygame.draw.circle(self.screen, self.GREEN, goal, 10)
         top_left = (self.world.width/128)*np.array([self.robot.x_coord, self.robot.y_coord])
         pygame.draw.rect(self.screen, self.BLUE, pygame.Rect(top_left[0], top_left[1], 10, 10), 2)
 
@@ -215,7 +215,12 @@ class Runner:
         self.world.env = np.zeros((128,128))
         running = True
         generate_path = True
-        generate_new_map = False
+        try:
+            np.load("env.npy")
+            print("Use previous map")
+            generate_new_map = False
+        except:
+            generate_new_map = True
 
         while running:
 
@@ -231,38 +236,46 @@ class Runner:
                     
                     obs_idx = np.argwhere(obs == 1)
                     ox = np.array(obs_idx[:,0])
-                    oy = max(ox) - np.array(obs_idx[:,1])
-                    obs_map = calc_obstacle_map(ox, oy)
-                    np.save("obstacle_map", obs_map)
+                    oy = 127 - np.array(obs_idx[:,1])
+                    
+                    obs_map = np.flip(obs, axis=1)
                     print("Obstacle map generated")
-                    generate_new_map = False
+
 
                 # generate path
                 print("Generating Path")
+                self.world.env = np.load("env.npy")
                 obs = np.load("env.npy")
                 obs_idx = np.argwhere(obs == 1)
                 ox = np.array(obs_idx[:,0])
-                oy = max(ox) - np.array(obs_idx[:,1])
-                obs_map = np.load("obstacle_map.npy")
+                oy = 127 - np.array(obs_idx[:,1])
+                obs_map = np.flip(obs, axis=1)
+
+                planner1 = BreadthFirstSearchPlanner(ox, oy, obs_map)
+                planner2 = DepthFirstSearchPlanner(ox, oy, obs_map)
+                planner3 = DijkstraPlanner(ox, oy, obs_map)
+                planner4 = AStarPlanner(ox, oy, obs_map)
+
+                rx, ry = planner2.planning(self.controller.start_x,
+                                            self.controller.start_y,
+                                            self.controller.goal_x,
+                                            self.controller.goal_y)
                 
-                planner = BreadthFirstSearchPlanner(ox, oy, obs_map)
-                planner = DepthFirstSearchPlanner(ox, oy, obs_map)
-                planner = Dijkstra(ox, oy, obs_map)
-                planner = AStarPlanner(ox, oy, obs_map)
+                if np.array_equal(rx,np.array([0])):
+                    self.world.env = np.zeros((128,128))
+                    generate_new_map = True
+                    generate_path = True
+                    print("REGENERATING MAP")
+                else:
+                    self.controller.path_x = np.flip(rx)
+                    self.controller.path_y = 127 - np.flip(ry)
+                    
+                    
+                    self.world.set_surface()              
+                    generate_path = False
+                    generate_new_map = False
 
-                rx, ry = planner.planning(self.controller.start_x,
-                                      self.controller.start_y,
-                                      self.controller.goal_x,
-                                      self.controller.goal_y)
 
-
-                self.controller.path_x = np.flip(rx)
-                self.controller.path_y = 127 - np.flip(ry)
-                generate_path = False
-
-            else:
-                self.world.env = np.load("env.npy")
-                self.world.set_surface()              
 
             self.controller.step()
             self.telemetry.update_telemetry()
@@ -270,47 +283,15 @@ class Runner:
             running = self.vis.update_display()
 
             # time.sleep(0.01)
-        
-
-        img_name = str(self.coverage) + '.jpeg'
-        pygame.image.save(self.vis.screen, img_name)
-
-
-def calc_obstacle_map(ox, oy):
-
-    minx = round(min(ox))
-    miny = round(min(oy))
-    maxx = round(max(ox))
-    maxy = round(max(oy))
-    rr = 0.5
-    reso = 1
-
-    xwidth = round((maxx - minx) / reso)
-    ywidth = round((maxy - miny) / reso)
-
-    # obstacle map generation
-    print("Generating obstacle map")
-    obmap = [[False for _ in range(ywidth)]
-                for _ in range(xwidth)]
-
-    for ix in range(xwidth):
-        x = ix * reso + minx
-        for iy in range(ywidth):
-            y = iy * reso + miny
-            for iox, ioy in zip(ox, oy):
-                d = hypot(iox - x, ioy - y)
-                if d <= rr:
-                    obmap[ix][iy] = True
-                    break
-    return obmap
+            img_name = str(self.coverage) + '.jpeg'
+            pygame.image.save(self.vis.screen, img_name)
 
 
 def main():
     height = int(1280*0.75)
     width = int(1280*0.75)
-    sx, sy = 1, 126
-    gx, gy = 125, 1
-    path = np.zeros((100,2))
+    sx, sy = 1, 127
+    gx, gy = 126, 1
     
     robot = Robot(width, height)
     controller = Controller(robot, sx, sy, gx, gy)
@@ -319,7 +300,7 @@ def main():
     telemetry = Telemetry(robot, world)
     vis = Visualizer(robot, controller, telemetry, world)
 
-    coverage = 15
+    coverage = 35
     runner = Runner(robot, controller, telemetry, world, vis, coverage/100)
 
     

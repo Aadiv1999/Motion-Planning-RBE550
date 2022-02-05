@@ -13,7 +13,7 @@ import numpy as np
 show_animation = True
 
 
-class Dijkstra:
+class DijkstraPlanner:
 
     def __init__(self, ox, oy, obs_map):
         """
@@ -27,13 +27,13 @@ class Dijkstra:
         self.reso = 1
         self.robot_radius = 0.5
         self.motion = self.get_motion_model()
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        self.minx = 0
+        self.miny = 0
+        self.maxx = 127
+        self.maxy = 127
 
-        self.x_width = round((self.max_x - self.min_x) / self.reso)
-        self.y_width = round((self.max_y - self.min_y) / self.reso)
+        self.x_width = round((self.maxx - self.minx) / self.reso)
+        self.y_width = round((self.maxy - self.miny) / self.reso)
 
         self.obstacle_map = obs_map
 
@@ -63,10 +63,10 @@ class Dijkstra:
             ry: y position list of the final path
         """
 
-        start_node = self.Node(self.calc_xy_index(sx, self.min_x),
-                               self.calc_xy_index(sy, self.min_y), 0.0, -1)
-        goal_node = self.Node(self.calc_xy_index(gx, self.min_x),
-                              self.calc_xy_index(gy, self.min_y), 0.0, -1)
+        start_node = self.Node(self.calc_xy_index(sx, self.minx),
+                               self.calc_xy_index(sy, self.miny), 0.0, -1)
+        goal_node = self.Node(self.calc_xy_index(gx, self.minx),
+                              self.calc_xy_index(gy, self.miny), 0.0, -1)
 
         open_set, closed_set = dict(), dict()
         open_set[self.calc_index(start_node)] = start_node
@@ -77,7 +77,7 @@ class Dijkstra:
 
 
             if current.x == goal_node.x and current.y == goal_node.y:
-                print("Find goal")
+                # print("Find goal")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 break
@@ -114,13 +114,16 @@ class Dijkstra:
 
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
-        rx, ry = [self.calc_position(goal_node.x, self.min_x)], [
-            self.calc_position(goal_node.y, self.min_y)]
+        rx, ry = [self.calc_position(goal_node.x, self.minx)], [
+            self.calc_position(goal_node.y, self.miny)]
         parent_index = goal_node.parent_index
         while parent_index != -1:
-            n = closed_set[parent_index]
-            rx.append(self.calc_position(n.x, self.min_x))
-            ry.append(self.calc_position(n.y, self.min_y))
+            try:
+                n = closed_set[goal_node.parent_index]
+            except:
+                return np.array([0]), np.array([127])
+            rx.append(self.calc_position(n.x, self.minx))
+            ry.append(self.calc_position(n.y, self.miny))
             parent_index = n.parent_index
 
         return rx, ry
@@ -133,19 +136,19 @@ class Dijkstra:
         return round((position - minp) / self.reso)
 
     def calc_index(self, node):
-        return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
+        return (node.y - self.miny) * self.x_width + (node.x - self.minx)
 
     def verify_node(self, node):
-        px = self.calc_position(node.x, self.min_x)
-        py = self.calc_position(node.y, self.min_y)
+        px = self.calc_position(node.x, self.minx)
+        py = self.calc_position(node.y, self.miny)
 
-        if px < self.min_x:
+        if px < self.minx:
             return False
-        if py < self.min_y:
+        if py < self.miny:
             return False
-        if px >= self.max_x:
+        if px >= self.maxx:
             return False
-        if py >= self.max_y:
+        if py >= self.maxy:
             return False
 
         if self.obstacle_map[node.x][node.y]:
@@ -155,9 +158,14 @@ class Dijkstra:
 
     @staticmethod
     def get_motion_model():
+        # dx, dy, cost
         motion = [[1, 0, 1],
                   [0, 1, 1],
                   [-1, 0, 1],
-                  [0, -1, 1]]
+                  [0, -1, 1],
+                  [1, 1, math.sqrt(2)],
+                  [1, -1, math.sqrt(2)],
+                  [-1, -1, math.sqrt(2)],
+                  [-1, 1, math.sqrt(2)]]
 
         return motion

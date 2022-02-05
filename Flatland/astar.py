@@ -34,14 +34,14 @@ class AStarPlanner:
         self.obstacle_map = obs_map
         self.motion = self.get_motion_model()
         
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        self.minx = 0
+        self.miny = 0
+        self.maxx = 127
+        self.maxy = 127
 
 
-        self.x_width = round((self.max_x - self.min_x) / self.reso)
-        self.y_width = round((self.max_y - self.min_y) / self.reso)
+        self.x_width = round((self.maxx - self.minx) / self.reso)
+        self.y_width = round((self.maxy - self.miny) / self.reso)
 
     class Node:
         def __init__(self, x, y, cost, parent_index):
@@ -69,10 +69,10 @@ class AStarPlanner:
             ry: y position list of the final path
         """
 
-        start_node = self.Node(self.calc_xy_index(sx, self.min_x),
-                               self.calc_xy_index(sy, self.min_y), 0.0, -1)
-        goal_node = self.Node(self.calc_xy_index(gx, self.min_x),
-                              self.calc_xy_index(gy, self.min_y), 0.0, -1)
+        start_node = self.Node(self.calc_xy_index(sx, self.minx),
+                               self.calc_xy_index(sy, self.miny), 0.0, -1)
+        goal_node = self.Node(self.calc_xy_index(gx, self.minx),
+                              self.calc_xy_index(gy, self.miny), 0.0, -1)
 
         open_set, closed_set = dict(), dict()
         open_set[self.calc_grid_index(start_node)] = start_node
@@ -90,7 +90,7 @@ class AStarPlanner:
             current = open_set[c_id]
 
             if current.x == goal_node.x and current.y == goal_node.y:
-                print("Find goal")
+                # print("Find goal")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 break
@@ -128,13 +128,13 @@ class AStarPlanner:
 
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
-        rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [
-            self.calc_grid_position(goal_node.y, self.min_y)]
+        rx, ry = [self.calc_grid_position(goal_node.x, self.minx)], [
+            self.calc_grid_position(goal_node.y, self.miny)]
         parent_index = goal_node.parent_index
         while parent_index != -1:
             n = closed_set[parent_index]
-            rx.append(self.calc_grid_position(n.x, self.min_x))
-            ry.append(self.calc_grid_position(n.y, self.min_y))
+            rx.append(self.calc_grid_position(n.x, self.minx))
+            ry.append(self.calc_grid_position(n.y, self.miny))
             parent_index = n.parent_index
 
         return rx, ry
@@ -160,19 +160,19 @@ class AStarPlanner:
         return round((position - min_pos) / self.reso)
 
     def calc_grid_index(self, node):
-        return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
+        return (node.y - self.miny) * self.x_width + (node.x - self.minx)
 
     def verify_node(self, node):
-        px = self.calc_grid_position(node.x, self.min_x)
-        py = self.calc_grid_position(node.y, self.min_y)
+        px = self.calc_grid_position(node.x, self.minx)
+        py = self.calc_grid_position(node.y, self.miny)
 
-        if px < self.min_x:
+        if px < self.minx:
             return False
-        elif py < self.min_y:
+        elif py < self.miny:
             return False
-        elif px >= self.max_x:
+        elif px >= self.maxx:
             return False
-        elif py >= self.max_y:
+        elif py >= self.maxy:
             return False
 
         # collision check
@@ -183,23 +183,23 @@ class AStarPlanner:
 
     def calc_obstacle_map(self, ox, oy):
 
-        self.min_x = round(min(ox))
-        self.min_y = round(min(oy))
-        self.max_x = round(max(ox))
-        self.max_y = round(max(oy))
+        self.minx = round(min(ox))
+        self.miny = round(min(oy))
+        self.maxx = round(max(ox))
+        self.maxy = round(max(oy))
 
 
-        self.x_width = round((self.max_x - self.min_x) / self.reso)
-        self.y_width = round((self.max_y - self.min_y) / self.reso)
+        self.x_width = round((self.maxx - self.minx) / self.reso)
+        self.y_width = round((self.maxy - self.miny) / self.reso)
 
 
         # obstacle map generation
         self.obstacle_map = [[False for _ in range(self.y_width)]
                              for _ in range(self.x_width)]
         for ix in range(self.x_width):
-            x = self.calc_grid_position(ix, self.min_x)
+            x = self.calc_grid_position(ix, self.minx)
             for iy in range(self.y_width):
-                y = self.calc_grid_position(iy, self.min_y)
+                y = self.calc_grid_position(iy, self.miny)
                 for iox, ioy in zip(ox, oy):
                     d = math.hypot(iox - x, ioy - y)
                     if d <= self.rr:
@@ -212,7 +212,11 @@ class AStarPlanner:
         motion = [[1, 0, 1],
                   [0, 1, 1],
                   [-1, 0, 1],
-                  [0, -1, 1]]
+                  [0, -1, 1],
+                  [1, 1, math.sqrt(2)],
+                  [1, -1, math.sqrt(2)],
+                  [-1, -1, math.sqrt(2)],
+                  [-1, 1, math.sqrt(2)]]
 
         return motion
 
