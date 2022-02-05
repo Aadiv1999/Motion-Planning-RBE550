@@ -256,7 +256,7 @@ class Runner:
                 planner3 = DijkstraPlanner(ox, oy, obs_map)
                 planner4 = AStarPlanner(ox, oy, obs_map)
 
-                rx, ry = planner2.planning(self.controller.start_x,
+                rx, ry = planner1.planning(self.controller.start_x,
                                             self.controller.start_y,
                                             self.controller.goal_x,
                                             self.controller.goal_y)
@@ -300,7 +300,7 @@ def main():
     telemetry = Telemetry(robot, world)
     vis = Visualizer(robot, controller, telemetry, world)
 
-    coverage = 35
+    coverage = 40
     runner = Runner(robot, controller, telemetry, world, vis, coverage/100)
 
     
