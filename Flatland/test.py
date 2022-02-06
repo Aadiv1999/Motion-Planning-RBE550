@@ -12,12 +12,16 @@ import cv2
 from bfs import BreadthFirstSearchPlanner
 from dfs import DepthFirstSearchPlanner
 from dijkstra import DijkstraPlanner
-from astar import AStarPlanner
 from random_planner import RandomPlanner
 
 
 
 class Robot:
+    """
+    Contains all robot parameters
+    Contains controller class
+    Contains robot telemetry information
+    """
     x_coord: int
     y_coord: int
 
@@ -93,6 +97,10 @@ class Robot:
 
 
 class World:
+    """
+    World class, defines the environment
+    Used to generate random objects
+    """
 
     shape = np.array([[[0,0], [1,0], [2,0], [2,1]],
             [[0,0], [1,0], [2,0], [3,0]],
@@ -162,6 +170,10 @@ class World:
 
 
 class Visualizer:
+    """
+    Visualizer class is used to display the robot and world
+    using Pygame
+    """
     BLACK: Tuple[int, int, int] = (0, 0, 0)
     RED: Tuple[int, int, int] = (255, 0, 0)
     GREEN: Tuple[int, int, int] = (0, 255, 0)
@@ -233,6 +245,9 @@ class Visualizer:
 
 
 class Runner:
+    """
+    Calls all the class methods to display and run the 4 planning algorithms
+    """
     def __init__(self, robot: List[Robot], world: World, vis: Visualizer, coverage: int) -> None:
         self.robots = robot
         self.world = world
@@ -255,6 +270,9 @@ class Runner:
         
 
     def run(self):
+        
+        # initialize variables
+
         success = False
         self.world.env = np.zeros((128,128))
         running = True
@@ -264,13 +282,17 @@ class Runner:
         try:
             np.load("env.npy")
             print("Use previous map")
+            # always generate new map
             generate_new_map = True
         except:
             generate_new_map = True
 
+        # set a limit to maximum coverage
         while self.coverage < 0.5 and running:
-
+            
+            # generate new path
             if generate_path:
+                # generate new map with different obstacle density
                 if generate_new_map:
                     while self.world.env.sum()/(128*128) < self.coverage:
                         self.world.generate_random_tetromino()
@@ -297,11 +319,13 @@ class Runner:
                 oy = 127 - np.array(obs_idx[:,1])
                 obs_map = np.flip(obs, axis=1)
 
+                # initialize planners
                 planner1 = BreadthFirstSearchPlanner(ox, oy, obs_map)
                 planner2 = DepthFirstSearchPlanner(ox, oy, obs_map)
                 planner3 = DijkstraPlanner(ox, oy, obs_map)
                 planner4 = RandomPlanner(ox, oy, obs_map)
 
+                # get the complete path using the respective planners
                 rx, ry = planner2.planning(self.robots[0].controller.start_x,
                                             self.robots[0].controller.start_y,
                                             self.robots[0].controller.goal_x,
@@ -322,7 +346,7 @@ class Runner:
                                             self.robots[3].controller.goal_x,
                                             self.robots[3].controller.goal_y)
                 
-                
+                # if path does not exist, regenerate map with new obstacles
                 if np.array_equal(rx,np.array([0])) or np.array_equal(rx1,np.array([0])) or np.array_equal(rx2,np.array([0])) and counter < 2:
                     self.world.env = np.zeros((128,128))
                     generate_new_map = True
@@ -332,6 +356,7 @@ class Runner:
                     counter += 1
                     print("Tries: ", counter)
                 else:
+                    # else, assign path to each robot
                     self.robots[0].controller.path_x = np.flip(rx)
                     self.robots[0].controller.path_y = 127 - np.flip(ry)
                     self.robots[1].controller.path_x = np.flip(rx1)
@@ -350,13 +375,17 @@ class Runner:
                     self.num_iterations.append([self.coverage, len(rx1), len(rx), len(rx2), len(rx3)])
 
 
-
+            # in every iteration of the while loop, step all robot controllers
+            # update each robots telemetry information
             for r in self.robots:
                 r.controller.step()
                 r.telemetry.update_telemetry(r.controller.x_coord, r.controller.y_coord)
 
+            # check if the fastest 2 robots have reached the goal
             success = self.check_success()
 
+            # if successful and all planners produce a path
+            # increment the obstacle density and regenerate map
             if success and all_paths:
                 self.coverage += 0.05
                 print("NEW COVERAGE = ", self.coverage*100)
@@ -370,12 +399,15 @@ class Runner:
                 generate_path = True
                 generate_new_map = True
             
+            # after every iteration of the while loop, update the display
             running = self.vis.update_display(self.coverage)
 
             # time.sleep(0.01)
+            
+            # save the pygame surface as an image
             self.coverage = np.round(self.coverage, 2)
-            # img_name = str(self.coverage) + '.jpeg'
-            # pygame.image.save(self.vis.screen, img_name)
+            img_name = str(self.coverage) + '.jpeg'
+            pygame.image.save(self.vis.screen, img_name)
         
         np.save('plot_data', self.num_iterations)
 
@@ -386,6 +418,7 @@ def main():
     sx, sy = 1, 127
     gx, gy = 126, 0
     
+    # instantiate all robots
     robot = Robot(width, height, sx, sy, gx, gy)
     robot1 = Robot(width, height, sx, sy, gx, gy)
     robot2 = Robot(width, height, sx, sy, gx, gy)
@@ -397,6 +430,7 @@ def main():
     
     vis = Visualizer(robots, world)
 
+    # seed coverage %
     coverage = 5
     runner = Runner(robots, world, vis, coverage/100)
 
