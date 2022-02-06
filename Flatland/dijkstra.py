@@ -6,11 +6,9 @@ author: Atsushi Sakai(@Atsushi_twi)
 
 """
 
-import matplotlib.pyplot as plt
-import math
 import numpy as np
+import math
 
-show_animation = True
 
 
 class DijkstraPlanner:
@@ -72,12 +70,16 @@ class DijkstraPlanner:
         open_set[self.calc_index(start_node)] = start_node
 
         while 1:
+            if len(open_set) == 0:
+                print("DIJKSTRA Open set is empty..")
+                return np.array([0]), np.array([127])
+            
             c_id = min(open_set, key=lambda o: open_set[o].cost)
             current = open_set[c_id]
-
+            # print(c_id)
 
             if current.x == goal_node.x and current.y == goal_node.y:
-                # print("Find goal")
+                # print("Found goal")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 break
@@ -109,7 +111,6 @@ class DijkstraPlanner:
                         open_set[n_id] = node
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
-
         return rx, ry
 
     def calc_final_path(self, goal_node, closed_set):
@@ -117,11 +118,10 @@ class DijkstraPlanner:
         rx, ry = [self.calc_position(goal_node.x, self.minx)], [
             self.calc_position(goal_node.y, self.miny)]
         parent_index = goal_node.parent_index
+
         while parent_index != -1:
-            try:
-                n = closed_set[goal_node.parent_index]
-            except:
-                return np.array([0]), np.array([127])
+            
+            n = closed_set[parent_index]
             rx.append(self.calc_position(n.x, self.minx))
             ry.append(self.calc_position(n.y, self.miny))
             parent_index = n.parent_index

@@ -10,11 +10,6 @@ See Wikipedia article (https://en.wikipedia.org/wiki/A*_search_algorithm)
 """
 
 import math
-import numpy as np
-import matplotlib.pyplot as plt
-
-show_animation = True
-
 
 class AStarPlanner:
 
@@ -128,14 +123,17 @@ class AStarPlanner:
 
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
+        
         rx, ry = [self.calc_grid_position(goal_node.x, self.minx)], [
             self.calc_grid_position(goal_node.y, self.miny)]
         parent_index = goal_node.parent_index
         while parent_index != -1:
+            
             n = closed_set[parent_index]
             rx.append(self.calc_grid_position(n.x, self.minx))
             ry.append(self.calc_grid_position(n.y, self.miny))
             parent_index = n.parent_index
+            
 
         return rx, ry
 

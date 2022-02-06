@@ -10,7 +10,6 @@ See Wikipedia article (https://en.wikipedia.org/wiki/Breadth-first_search)
 
 import math
 import numpy as np
-import matplotlib.pyplot as plt
 
 show_animation = True
 
@@ -79,7 +78,7 @@ class BreadthFirstSearchPlanner:
 
         while 1:
             if len(open_set) == 0:
-                print("Open set is empty..")
+                print("BFS Open set is empty..")
                 return np.array([0]), np.array([127])
 
             current = open_set.pop(list(open_set.keys())[0])

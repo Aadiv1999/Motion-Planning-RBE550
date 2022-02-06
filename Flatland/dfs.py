@@ -76,7 +76,7 @@ class DepthFirstSearchPlanner:
 
         while 1:
             if len(open_set) == 0:
-                print("Open set is empty..")
+                print("DFS Open set is empty..")
                 return np.array([0]), np.array([127])
 
             current = open_set.pop(list(open_set.keys())[-1])

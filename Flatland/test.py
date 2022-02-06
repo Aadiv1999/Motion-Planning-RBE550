@@ -2,8 +2,7 @@ import time
 
 from typing import List, Tuple, Union
 from copy import copy
-from urllib import robotparser
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import pygame
 from math import sin, cos, atan, atan2, pi, sqrt, hypot
@@ -13,6 +12,8 @@ from bfs import BreadthFirstSearchPlanner
 from dfs import DepthFirstSearchPlanner
 from dijkstra import DijkstraPlanner
 from astar import AStarPlanner
+
+
 
 class Robot:
     x_coord: int
@@ -26,6 +27,8 @@ class Robot:
         self.map = np.zeros((128,128),dtype='float64')
         self.surface = np.zeros((self.width,self.height,3), dtype=int)
         self.controller = self.Controller(sx, sy, gx, gy)
+        self.telemetry = self.Telemetry(width, height)
+        
     
 
     def robot_map(self):
@@ -52,6 +55,7 @@ class Robot:
             self.path_x = np.array([0])
             self.path_y = np.array([0])
             self.counter = 0
+
         
         def step(self):
             self.x_coord = int(self.path_x[self.counter])
@@ -59,6 +63,31 @@ class Robot:
 
             if self.counter < len(self.path_x)-1:
                 self.counter += 1
+            else:
+                self.x_coord = self.goal_x
+                self.y_coord = self.goal_y
+
+    class Telemetry:
+        def __init__(self, width, height) -> None:
+            self.width = width
+            self.height = height
+            self.points = []
+            self.trace = np.zeros((self.width,self.height,3), dtype=int)
+            
+        
+        def update_telemetry(self, x_coord: int, y_coord: int) -> None:
+            self.points.append([x_coord, y_coord])
+        
+        def set_trace(self, color):
+            env = np.zeros((128,128),dtype='float64')
+            for p in self.points:
+                env[p[0],p[1]] = color
+            
+            self.trace[:,:,1] = np.array(cv2.resize(env, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
+            self.trace[:,:,2] = self.trace[:,:,1]
+            # self.trace = 255 - self.trace
+
+            return self.trace
 
 
 class World:
@@ -122,36 +151,13 @@ class World:
                     break
                 else:
                     self.env[obs[0], obs[1]] = 1
+                self.env[obs[0], obs[1]] = 1
 
         if flag:
             self.set_surface()
         
 
-class Telemetry:
-    def __init__(self, robot: List[Robot], world: World) -> None:
-        self.robots = robot
-        self.points = [[]] * len(robot)
-        self.width = world.width
-        self.height = world.height
-        self.trace = np.zeros((self.width,self.height,3), dtype=int)
-    
-    def update_telemetry(self) -> None:
-        for i in range(len(self.robots)):
-            self.points[i].append([self.robots[i].controller.x_coord, self.robots[i].controller.y_coord])
-    
-    def set_trace(self):
-        color = 255
-        env = np.zeros((128,128),dtype='float64')
-        for points in self.points:
-            for p in points:
-                env[p[0],p[1]] = color
-            color = 150
-        
-        self.trace[:,:,1] = np.array(cv2.resize(env, (self.width,self.height), interpolation=cv2.INTER_AREA),dtype=int)
-        self.trace[:,:,2] = self.trace[:,:,1]
-        # self.trace = 255 - self.trace
 
-        return self.trace
 
 class Visualizer:
     BLACK: Tuple[int, int, int] = (0, 0, 0)
@@ -161,39 +167,42 @@ class Visualizer:
     WHITE: Tuple[int, int, int] = (255, 255, 255)
     BLUE: Tuple[int, int, int] = (0, 0, 255)
 
-    def __init__(self, robot: List[Robot], telemetry: Telemetry, world: World) -> None:
+    def __init__(self, robot: List[Robot], world: World) -> None:
         pygame.init()
         pygame.font.init()
         self.world = world
         self.robots = robot
-
-        self.telemetry = telemetry
+        self.color = [self.RED, self.GREEN, self.INV_RED]
         
         self.screen = pygame.display.set_mode((world.width, world.height))
         pygame.display.set_caption('Tetromino Challenge')
         self.font = pygame.font.SysFont('freesansbolf.tff', 30)
 
     def display_world(self):
-        surf_array = self.world.surface-self.telemetry.set_trace()
-
+        surf_array = self.world.surface
+        counter = 50
         for r in self.robots:
-            surf_array -= r.robot_map()
+            surf_array = surf_array - r.robot_map() - r.telemetry.set_trace(255-counter)
+            counter += 70
 
+        # surf_array = surf_array - self.robots[0].robot_map() - self.robots[0].telemetry.set_trace()
         
         surf = pygame.pixelcopy.make_surface(surf_array)
         self.screen.blit(surf, (0,0))
 
+        counter = 0
         for r in self.robots:
             center = self.world.convert_to_display(r.controller.x_coord, r.controller.y_coord)
             goal = self.world.convert_to_display(r.controller.goal_x,127-r.controller.goal_y)
 
-            pygame.draw.circle(self.screen, self.RED, center, 10, 2)
+            pygame.draw.circle(self.screen, self.color[counter], center, 10, 2)
             pygame.draw.circle(self.screen, self.GREEN, goal, 10)
             top_left = (self.world.width/128)*np.array([r.controller.x_coord, r.controller.y_coord])
             pygame.draw.rect(self.screen, self.BLUE, pygame.Rect(top_left[0], top_left[1], 10, 10), 2)
+            counter += 1
 
 
-    def update_display(self) -> bool:
+    def update_display(self, coverage) -> bool:
 
         self.display_world()
 
@@ -207,9 +216,10 @@ class Visualizer:
                         r.x_coord = r.controller.path_x[0]
                         r.y_coord = r.controller.path_y[0]
                         r.controller.counter = 0
-                    self.telemetry.points = [[]] * len(self.robots)
+                        r.telemetry.points = []
 
         pygame.display.flip()
+        pygame.display.set_caption('Tetromino Challenge '+str(np.round(coverage*100,0))+'%')
 
         return True
 
@@ -218,32 +228,47 @@ class Visualizer:
 
 
 class Runner:
-    def __init__(self, robot: List[Robot], telemetry: Telemetry, world: World, vis: Visualizer, coverage: int) -> None:
+    def __init__(self, robot: List[Robot], world: World, vis: Visualizer, coverage: int) -> None:
         self.robots = robot
         self.world = world
         self.vis = vis
         self.coverage = coverage
-        self.telemetry = telemetry
+        # coverage | DFS | BFS | Dijkstra
+        self.num_iterations = []
+    
+    def check_success(self):
+        success = 0
+        for r in self.robots:
+            # print(success)
+            if (r.controller.x_coord == r.controller.goal_x) and\
+                            (r.controller.y_coord == r.controller.goal_y):
+                success += 1
+        if success == len(self.robots)-1:
+            return True
+        return False
         
 
     def run(self):
+        success = False
         self.world.env = np.zeros((128,128))
         running = True
         generate_path = True
+        all_paths = True
+        counter = 0
         try:
             np.load("env.npy")
             print("Use previous map")
-            generate_new_map = False
+            generate_new_map = True
         except:
             generate_new_map = True
 
-        while self.coverage < 0.5:
+        while self.coverage < 0.5 and running:
 
             if generate_path:
                 if generate_new_map:
                     while self.world.env.sum()/(128*128) < self.coverage:
                         self.world.generate_random_tetromino()
-                        print("Generating environment, percent covered: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
+                        print("Generating environment, percent completed: ", (self.world.env.sum()/(self.coverage*128*128))*100, end='\r')
                     np.save("env.npy", self.world.env)
                     print("\n")
 
@@ -271,75 +296,93 @@ class Runner:
                 planner3 = DijkstraPlanner(ox, oy, obs_map)
                 planner4 = AStarPlanner(ox, oy, obs_map)
 
-                rx, ry = planner1.planning(self.robots[0].controller.start_x,
+                rx, ry = planner2.planning(self.robots[0].controller.start_x,
                                             self.robots[0].controller.start_y,
                                             self.robots[0].controller.goal_x,
                                             self.robots[0].controller.goal_y)
                 
-                rx1, ry1 = planner2.planning(self.robots[1].controller.start_x,
+                rx1, ry1 = planner1.planning(self.robots[1].controller.start_x,
                                             self.robots[1].controller.start_y,
                                             self.robots[1].controller.goal_x,
                                             self.robots[1].controller.goal_y)
                 
-                if np.array_equal(rx,np.array([0])):
+                rx2, ry2 = planner3.planning(self.robots[2].controller.start_x,
+                                            self.robots[2].controller.start_y,
+                                            self.robots[2].controller.goal_x,
+                                            self.robots[2].controller.goal_y)
+                
+                if np.array_equal(rx,np.array([0])) or np.array_equal(rx1,np.array([0])) or np.array_equal(rx2,np.array([0])) and counter < 2:
                     self.world.env = np.zeros((128,128))
                     generate_new_map = True
                     generate_path = True
-                    print("REGENERATING MAP")
+                    all_paths = False
+                    print("REGENERATING MAP")                    
+                    counter += 1
+                    print("Tries: ", counter)
                 else:
                     self.robots[0].controller.path_x = np.flip(rx)
                     self.robots[0].controller.path_y = 127 - np.flip(ry)
-                    # self.robots[1].controller.path_x = np.flip(rx1)
-                    # self.robots[1].controller.path_y = 127 - np.flip(ry1)
-                    print("Path made")
-                    
+                    self.robots[1].controller.path_x = np.flip(rx1)
+                    self.robots[1].controller.path_y = 127 - np.flip(ry1)
+                    self.robots[2].controller.path_x = np.flip(rx2)
+                    self.robots[2].controller.path_y = 127 - np.flip(ry2)
+                    all_paths = True               
                     
                     self.world.set_surface()              
                     generate_path = False
                     generate_new_map = False
 
+                    self.num_iterations.append([self.coverage, len(rx1), len(rx), len(rx2)])
+
+
 
             for r in self.robots:
                 r.controller.step()
-                self.telemetry.update_telemetry()
+                r.telemetry.update_telemetry(r.controller.x_coord, r.controller.y_coord)
 
-            
+            success = self.check_success()
 
-            if self.robots[0].controller.counter == len(self.robots[0].controller.path_x)-1:
-                self.coverage += 0.1
+            if success and all_paths:
+                self.coverage += 0.05
                 print("NEW COVERAGE = ", self.coverage*100)
                 self.world.env = np.zeros((128,128))
-                self.robots[0].controller.path_x = np.array([0])
-                self.robots[0].controller.path_y = np.array([0])
-                self.robots[0].controller.counter = 0
-                self.telemetry.points = [[]] * len(self.robots)
-                self.telemetry.set_trace()
+                for r in self.robots:
+                    r.controller.path_x = np.array([0])
+                    r.controller.path_y = np.array([0])
+                    r.controller.counter = 0
+                    r.telemetry.points = []
+                    r.telemetry.set_trace(255)
                 generate_path = True
                 generate_new_map = True
             
-            running = self.vis.update_display()
+            running = self.vis.update_display(self.coverage)
 
             # time.sleep(0.01)
             self.coverage = np.round(self.coverage, 2)
             img_name = str(self.coverage) + '.jpeg'
             pygame.image.save(self.vis.screen, img_name)
+        
+        np.save('plot_data', self.num_iterations)
 
 
 def main():
     height = int(1280*0.75)
     width = int(1280*0.75)
     sx, sy = 1, 127
-    gx, gy = 126, 1
+    gx, gy = 126, 0
     
     robot = Robot(width, height, sx, sy, gx, gy)
     robot1 = Robot(width, height, sx, sy, gx, gy)
+    robot2 = Robot(width, height, sx, sy, gx, gy)
+
+    robots = [robot, robot1, robot2]
        
-    world = World([robot,robot1], width, height)
-    telemetry = Telemetry([robot, robot1], world)
-    vis = Visualizer([robot, robot1], telemetry, world)
+    world = World(robots, width, height)
+    
+    vis = Visualizer(robots, world)
 
     coverage = 5
-    runner = Runner([robot,robot1], telemetry, world, vis, coverage/100)
+    runner = Runner(robots, world, vis, coverage/100)
 
     
 

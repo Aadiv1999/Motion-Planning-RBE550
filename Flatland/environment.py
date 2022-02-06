@@ -247,6 +247,7 @@ class Runner:
                 self.world.env = np.load("env.npy")
                 obs = np.load("env.npy")
                 obs_idx = np.argwhere(obs == 1)
+
                 ox = np.array(obs_idx[:,0])
                 oy = 127 - np.array(obs_idx[:,1])
                 obs_map = np.flip(obs, axis=1)
@@ -256,7 +257,7 @@ class Runner:
                 planner3 = DijkstraPlanner(ox, oy, obs_map)
                 planner4 = AStarPlanner(ox, oy, obs_map)
 
-                rx, ry = planner1.planning(self.controller.start_x,
+                rx, ry = planner3.planning(self.controller.start_x,
                                             self.controller.start_y,
                                             self.controller.goal_x,
                                             self.controller.goal_y)
@@ -268,8 +269,7 @@ class Runner:
                     print("REGENERATING MAP")
                 else:
                     self.controller.path_x = np.flip(rx)
-                    self.controller.path_y = 127 - np.flip(ry)
-                    
+                    self.controller.path_y = 127 - np.flip(ry)                    
                     
                     self.world.set_surface()              
                     generate_path = False
@@ -300,7 +300,7 @@ def main():
     telemetry = Telemetry(robot, world)
     vis = Visualizer(robot, controller, telemetry, world)
 
-    coverage = 40
+    coverage = 5
     runner = Runner(robot, controller, telemetry, world, vis, coverage/100)
 
     
