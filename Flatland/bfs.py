@@ -1,13 +1,3 @@
-"""
-
-Breadth-First grid planning
-
-author: Erwin Lejeune (@spida_rwin)
-
-See Wikipedia article (https://en.wikipedia.org/wiki/Breadth-first_search)
-
-"""
-
 import math
 import numpy as np
 
@@ -17,14 +7,7 @@ show_animation = True
 class BreadthFirstSearchPlanner:
 
     def __init__(self, ox, oy, obs_map):
-        """
-        Initialize grid map for bfs planning
 
-        ox: x position list of Obstacles [m]
-        oy: y position list of Obstacles [m]
-        resolution: grid resolution [m]
-        rr: robot radius[m]
-        """
 
         self.reso = 1
         self.rr = 0.5
@@ -51,22 +34,7 @@ class BreadthFirstSearchPlanner:
                 self.cost) + "," + str(self.parent_index)
 
     def planning(self, sx, sy, gx, gy):
-        """
-        Breadth First search based planning
 
-        input:
-            s_x: start x position [m]
-            s_y: start y position [m]
-            gx: goal x position [m]
-            gy: goal y position [m]
-
-            if len(open_set) == 0:
-                print("Open set is empty..")
-                break
-
-            current = open_set.pop(list(open_set.keys())
-            ry: y position list of the final path
-        """
 
         nstart = self.Node(self.calc_xyindex(sx, self.minx),
                            self.calc_xyindex(sy, self.miny), 0.0, -1, None)
@@ -127,13 +95,7 @@ class BreadthFirstSearchPlanner:
         return rx, ry
 
     def calc_grid_position(self, index, minp):
-        """
-        calc grid position
 
-        :param index:
-        :param minp:
-        :return:
-        """
         pos = index * self.reso + minp
         return pos
 

@@ -2,6 +2,7 @@ import time
 
 from typing import List, Tuple, Union
 from copy import copy
+from matplotlib import path
 import matplotlib.pyplot as plt
 import numpy as np
 import pygame
@@ -12,6 +13,7 @@ from bfs import BreadthFirstSearchPlanner
 from dfs import DepthFirstSearchPlanner
 from dijkstra import DijkstraPlanner
 from astar import AStarPlanner
+from random_planner import RandomPlanner
 
 
 
@@ -172,7 +174,7 @@ class Visualizer:
         pygame.font.init()
         self.world = world
         self.robots = robot
-        self.color = [self.RED, self.GREEN, self.INV_RED]
+        self.color = [self.RED, self.GREEN, self.INV_RED, self.BLUE]
         
         self.screen = pygame.display.set_mode((world.width, world.height))
         pygame.display.set_caption('Tetromino Challenge')
@@ -180,10 +182,8 @@ class Visualizer:
 
     def display_world(self):
         surf_array = self.world.surface
-        counter = 50
         for r in self.robots:
-            surf_array = surf_array - r.robot_map() - r.telemetry.set_trace(255-counter)
-            counter += 70
+            surf_array = surf_array - r.robot_map()
 
         # surf_array = surf_array - self.robots[0].robot_map() - self.robots[0].telemetry.set_trace()
         
@@ -195,10 +195,15 @@ class Visualizer:
             center = self.world.convert_to_display(r.controller.x_coord, r.controller.y_coord)
             goal = self.world.convert_to_display(r.controller.goal_x,127-r.controller.goal_y)
 
-            pygame.draw.circle(self.screen, self.color[counter], center, 10, 2)
+            pygame.draw.circle(self.screen, self.BLUE, center, 10, 2)
             pygame.draw.circle(self.screen, self.GREEN, goal, 10)
-            top_left = (self.world.width/128)*np.array([r.controller.x_coord, r.controller.y_coord])
-            pygame.draw.rect(self.screen, self.BLUE, pygame.Rect(top_left[0], top_left[1], 10, 10), 2)
+            
+            path_left = (self.world.width/128)*np.array([r.controller.path_x, r.controller.path_y]).T
+            
+            # pygame.draw.rect(self.screen, self.BLUE, pygame.Rect(top_left[0], top_left[1], 10, 10), 2)
+            for i in range(r.controller.counter):
+                pygame.draw.rect(self.screen, self.color[counter], pygame.Rect(path_left[i,0], path_left[i,1], 10, 10))
+            
             counter += 1
 
 
@@ -243,7 +248,8 @@ class Runner:
             if (r.controller.x_coord == r.controller.goal_x) and\
                             (r.controller.y_coord == r.controller.goal_y):
                 success += 1
-        if success == len(self.robots)-1:
+        # success == True when 2 fastest robots have reached the goal
+        if success == len(self.robots) - 2:
             return True
         return False
         
@@ -294,7 +300,7 @@ class Runner:
                 planner1 = BreadthFirstSearchPlanner(ox, oy, obs_map)
                 planner2 = DepthFirstSearchPlanner(ox, oy, obs_map)
                 planner3 = DijkstraPlanner(ox, oy, obs_map)
-                planner4 = AStarPlanner(ox, oy, obs_map)
+                planner4 = RandomPlanner(ox, oy, obs_map)
 
                 rx, ry = planner2.planning(self.robots[0].controller.start_x,
                                             self.robots[0].controller.start_y,
@@ -311,6 +317,12 @@ class Runner:
                                             self.robots[2].controller.goal_x,
                                             self.robots[2].controller.goal_y)
                 
+                rx3, ry3 = planner4.planning(self.robots[3].controller.start_x,
+                                            self.robots[3].controller.start_y,
+                                            self.robots[3].controller.goal_x,
+                                            self.robots[3].controller.goal_y)
+                
+                
                 if np.array_equal(rx,np.array([0])) or np.array_equal(rx1,np.array([0])) or np.array_equal(rx2,np.array([0])) and counter < 2:
                     self.world.env = np.zeros((128,128))
                     generate_new_map = True
@@ -326,13 +338,16 @@ class Runner:
                     self.robots[1].controller.path_y = 127 - np.flip(ry1)
                     self.robots[2].controller.path_x = np.flip(rx2)
                     self.robots[2].controller.path_y = 127 - np.flip(ry2)
+                    self.robots[3].controller.path_x = np.flip(rx3)
+                    self.robots[3].controller.path_y = 127 - np.flip(ry3)
+
                     all_paths = True               
                     
                     self.world.set_surface()              
                     generate_path = False
                     generate_new_map = False
 
-                    self.num_iterations.append([self.coverage, len(rx1), len(rx), len(rx2)])
+                    self.num_iterations.append([self.coverage, len(rx1), len(rx), len(rx2), len(rx3)])
 
 
 
@@ -359,8 +374,8 @@ class Runner:
 
             # time.sleep(0.01)
             self.coverage = np.round(self.coverage, 2)
-            img_name = str(self.coverage) + '.jpeg'
-            pygame.image.save(self.vis.screen, img_name)
+            # img_name = str(self.coverage) + '.jpeg'
+            # pygame.image.save(self.vis.screen, img_name)
         
         np.save('plot_data', self.num_iterations)
 
@@ -374,8 +389,9 @@ def main():
     robot = Robot(width, height, sx, sy, gx, gy)
     robot1 = Robot(width, height, sx, sy, gx, gy)
     robot2 = Robot(width, height, sx, sy, gx, gy)
+    robot3 = Robot(width, height, sx, sy, gx, gy)
 
-    robots = [robot, robot1, robot2]
+    robots = [robot, robot1, robot2, robot3]
        
     world = World(robots, width, height)
     

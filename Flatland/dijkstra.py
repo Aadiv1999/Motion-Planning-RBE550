@@ -1,11 +1,3 @@
-"""
-
-Grid based Dijkstra planning
-
-author: Atsushi Sakai(@Atsushi_twi)
-
-"""
-
 import numpy as np
 import math
 
@@ -14,14 +6,7 @@ import math
 class DijkstraPlanner:
 
     def __init__(self, ox, oy, obs_map):
-        """
-        Initialize map for a star planning
 
-        ox: x position list of Obstacles [m]
-        oy: y position list of Obstacles [m]
-        reso: grid reso [m]
-        rr: robot radius[m]
-        """
         self.reso = 1
         self.robot_radius = 0.5
         self.motion = self.get_motion_model()
@@ -47,19 +32,7 @@ class DijkstraPlanner:
                 self.cost) + "," + str(self.parent_index)
 
     def planning(self, sx, sy, gx, gy):
-        """
-        dijkstra path search
 
-        input:
-            s_x: start x position [m]
-            s_y: start y position [m]
-            gx: goal x position [m]
-            gx: goal x position [m]
-
-        output:
-            rx: x position list of the final path
-            ry: y position list of the final path
-        """
 
         start_node = self.Node(self.calc_xy_index(sx, self.minx),
                                self.calc_xy_index(sy, self.miny), 0.0, -1)
