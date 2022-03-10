@@ -1,4 +1,4 @@
-
+from mouse import mouse_trajectory
 import time
 from typing import List, Tuple, Union
 from copy import copy
@@ -74,6 +74,13 @@ class Robot:
     
     def get_position(self) -> Tuple[float, float]:
         return self.x_coord, self.y_coord
+    
+    def get_speed(self) -> Tuple[float, float]:
+        return self.vel_l, self.vel_r
+
+    def set_position(self, goal: Tuple[float, float]) -> None:
+        self.x_coord = goal[0]
+        self.y_coord = goal[1]
 
         
 
@@ -92,7 +99,7 @@ class Controller:
         self.robot.angle = self.robot.angle % 360
     
     def check_success(self, goal: Tuple[float, float]) -> bool:
-        return np.allclose(self.robot.get_position(), goal, atol=1)
+        return np.allclose(self.robot.get_position(), goal, atol=3.5)
     
 
 class World:    
@@ -120,7 +127,8 @@ class Planner:
                             [800, 500],
                             [20,50],
                             [900, 900],
-                            [30, 800]]
+                            [500,500],
+                            [100, 100]]
 
     def get_trajectory(self):
         return self.trajectory
@@ -166,15 +174,18 @@ class Visualizer:
         # left wheel
         pygame.draw.circle(self.screen, self.BLACK, robot_points[6], 5)
 
-        coor = 'Coordinates: ' + str(self.robot.get_position())
+        coor = 'Coordinates: ' + str(np.round(self.robot.get_position(),2))
+        speeds = 'Speeds: ' + str(np.round(self.robot.get_speed(),2))
         text = self.font.render(coor, True, self.BLACK)
         self.screen.blit(text, (1, 30))
+        text1 = self.font.render(speeds, True, self.BLACK)
+        self.screen.blit(text1, (1, 5))
 
 
     def display_world(self):
         # pygame.draw.circle(self.screen, self.BLACK, (self.world.width/2, self.world.height/2),5)
-        # for i in range(len(self.world.obs)-1):
-        #     pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
+        for i in range(len(self.world.obs)-1):
+            pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
         
         traj = convert_to_display(np.array(self.planner.get_trajectory()))
 
@@ -212,7 +223,10 @@ class Runner:
         self.vis = vis      
         
 
-    def run(self):
+    def run(self, trajectory):
+        self.planner.trajectory = convert_to_display( np.array(trajectory))
+        x = self.robot.x_coord
+        y = self.robot.y_coord
         running = True
         counter = 0
         last_counter = -1
@@ -234,6 +248,8 @@ class Runner:
                 # do stuff for new goal
                 # stop robot
                 self.robot.move(0,0)
+                # if counter < len(goal):
+                #     self.robot.set_position(goal[counter])
                 counter += 1
                 
                 print("Waypoint reached")
@@ -241,8 +257,9 @@ class Runner:
             else:
                 # turn towards goal
                 if counter == 0:
-                    dy = goal[counter][1] - self.robot.y_coord
-                    dx = goal[counter][0] - self.robot.x_coord
+                    dy = goal[counter][1] - y
+                    dx = goal[counter][0] - x
+                    last_counter = counter
                 else:
                     # dy = goal[counter][1] - goal[counter-1][1]
                     # dx = goal[counter][0] - goal[counter-1][0]
@@ -252,17 +269,27 @@ class Runner:
                         last_counter = counter
                 
                 heading = np.round(self.planner.get_heading(dx,dy),0)
-
-                if abs(self.robot.angle - heading) > 0.05:
-                    self.robot.angle += 0.1
-                    # print("Next goal: ", goal[counter])
-                    # print("Heading: ", heading)
-                    # print("Reqd Heading: ", heading-self.robot.angle)
+                diff_heading = self.robot.angle - heading
+                
+                if abs(diff_heading) > 0.05:
+                    turn_speed = 0.01
+                    if diff_heading >= 0:
+                        if diff_heading <=180:
+                            self.robot.move(turn_speed, -turn_speed)
+                        else:
+                            self.robot.move(-turn_speed, turn_speed)
+                    else:
+                        if diff_heading <= -180:
+                            self.robot.move(turn_speed, -turn_speed)
+                        else:
+                            self.robot.move(-turn_speed, turn_speed)
                 else:
-                    # move owards goal          
-                    gain = 0.001
-                    speed = max_speed(gain * ((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
+                    # self.robot.angle = heading
+                    gain = 0.005
+                    speed = max_speed(gain*((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
                     self.robot.move(speed, speed)
+                
+
 
 
             
@@ -281,7 +308,7 @@ def main():
     width = 1000
 
 
-    robot = Robot(500,700,0)
+    robot = Robot(0,900,0)
     controller = Controller(robot)
     world = World(width, height)
     planner = Planner()
@@ -290,7 +317,11 @@ def main():
     runner = Runner(robot, controller, world, planner, vis)
 
     try:
-        runner.run()
+        trajectory = mouse_trajectory(world.obs, width, height)
+        print(len(trajectory))
+        traj = trajectory[1::3]
+        print(len(traj))
+        runner.run(traj)
     except AssertionError as e:
         print(f'ERROR: {e}, Aborting.')
     except KeyboardInterrupt:
