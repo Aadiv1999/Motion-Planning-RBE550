@@ -2,7 +2,7 @@
 import pygame, sys
 from pygame.locals import *
 
-def mouse_trajectory(obstacles, width, height):
+def mouse_trajectory(obstacle, width, height):
     pygame.init()
     trajectory = []
     WHITE = (255, 255, 255)
@@ -19,9 +19,10 @@ def mouse_trajectory(obstacles, width, height):
     count = 0
     while running:
         
-        for i in range(len(obstacles)-1):
-            # print(obstacles[i])
-            pygame.draw.line(screen, BLACK, obstacles[i], obstacles[i+1], 8)
+        for obstacles in obstacle:
+            for i in range(len(obstacles)-1):
+                # print(obstacles[i])
+                pygame.draw.line(screen, BLACK, obstacles[i], obstacles[i+1], 8)
 
         for event in pygame.event.get():
             if event.type == QUIT:

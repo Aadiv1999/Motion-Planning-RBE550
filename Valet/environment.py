@@ -249,7 +249,7 @@ class Visualizer:
     def display_robot(self):
         robot_points = self.robot.get_robot_points()
         pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, HEIGHT-self.robot.y_coord),5)
-        pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, HEIGHT-self.robot.y_coord),40,2)
+        # pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, HEIGHT-self.robot.y_coord),40,2)
         for i in range(5):
             if i == 4:
                 pygame.draw.line(self.screen, self.RED, robot_points[i], robot_points[0], 4)
@@ -276,15 +276,21 @@ class Visualizer:
         
         # rect = (self.world.obs[1][0], self.world.obs[1][1], 430, 230)
         rect = (self.world.obs[2][0]-40, self.world.obs[2][1]-40, 480, 280)
-        pygame.draw.rect(self.screen, self.RED, rect, width=2, border_radius=40)
+        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
 
 
         for i in range(len(self.world.vehicle1)-1):
             pygame.draw.line(self.screen, self.RED, self.world.vehicle1[i], self.world.vehicle1[i+1], 8)
         
+        rect = (self.world.vehicle1[2][0]-40, self.world.vehicle1[2][1]-40, 280, 180)
+        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
+        
         for i in range(len(self.world.vehicle2)-1):
             pygame.draw.line(self.screen, self.RED, self.world.vehicle2[i], self.world.vehicle2[i+1], 8)
         
+        rect = (self.world.vehicle2[2][0]-40, self.world.vehicle2[2][1]-40, 280, 180)
+        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
+
         traj = convert_to_display(np.array(self.planner.get_trajectory()))
 
         for i in range(len(traj)-1):
@@ -421,30 +427,23 @@ def main():
     ox = np.array(obs_idx[:,0])
     oy = np.array(obs_idx[:,0])
     planner = AStarPlanner(ox, oy, image)
-    rx, ry = planner.planning(0,0, 270, 120)
 
-    print(len(rx))
+    trajectory = mouse_trajectory(world.obstacles, width, height)
+    gx = trajectory[-1][1]//3
+    gy = trajectory[-1][0]//3
+    rx, ry = planner.planning(0,0, gx, gy)
+
     for i in range(len(rx)-1):
         image[rx[i]][ry[i]] = 127
 
-    cv2.imshow("map", image)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
-
-    # grid = blockshaped(image, 3, 3)
-    # print(np.sum(grid[:,0,0]))
-    # print(grid[:,0,0])
-    # grid_map = planner.get_map(grid)
-    # # print(grid_map)
-    # cv2.imshow("map", grid_map)
+    # cv2.imshow("map", image)
     # cv2.waitKey()
     # cv2.destroyAllWindows()
+
     traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
     trajectory = traj
-    print(traj.shape)
+
     try:
-        # trajectory = mouse_trajectory(world.obs, width, height)
-        # traj = trajectory[1::4]
         runner.run(trajectory[1::5])
         pass
     except AssertionError as e:
