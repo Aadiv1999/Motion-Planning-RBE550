@@ -12,7 +12,7 @@ def mouse_trajectory(obstacles, width, height):
     drawing = False
     screen = pygame.display.set_mode((width, height))
     screen.fill(WHITE)
-    pygame.display.set_caption("ScratchBoard")
+    pygame.display.set_caption("Valet")
     
     last_pos = None
     running = True

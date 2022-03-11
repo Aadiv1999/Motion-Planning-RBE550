@@ -1,4 +1,5 @@
-from cmath import isclose
+from astar import AStarPlanner
+from matplotlib import pyplot as plt
 from mouse import mouse_trajectory
 from collision import intersects
 import time
@@ -7,8 +8,34 @@ from copy import copy
 import numpy as np
 import pygame
 import random
+import math
 from math import sin, cos, atan, atan2, pi, sqrt
+import cv2
+WIDTH = 900
+HEIGHT = 900
 
+
+def blockshaped(arr, r_nbrs, c_nbrs, interp=cv2.INTER_LINEAR):
+    """
+    arr      a 2D array, typically an image
+    r_nbrs   numbers of rows
+    r_cols   numbers of cols
+    """
+
+    arr_h, arr_w = arr.shape
+
+    size_w = int( math.floor(arr_w // c_nbrs) * c_nbrs )
+    size_h = int( math.floor(arr_h // r_nbrs) * r_nbrs )
+
+    if size_w != arr_w or size_h != arr_h:
+        arr = cv2.resize(arr, (size_w, size_h), interpolation=interp)
+
+    nrows = int(size_w // r_nbrs)
+    ncols = int(size_h // c_nbrs)
+
+    return (arr.reshape(r_nbrs, ncols, -1, nrows) 
+               .swapaxes(1,2)
+               .reshape(-1, ncols, nrows))
 
 def max_speed(speed):
     if speed > 1:
@@ -17,7 +44,7 @@ def max_speed(speed):
         return speed
     
 def max_turn(speed):
-    thresh = 0.02
+    thresh = 0.1
     if abs(speed) > thresh:
         return thresh
     else:
@@ -32,7 +59,7 @@ def rot_points(mat, degrees: float):
     return mat @ rot_mat
 
 def convert_to_display(mat):
-    mat[:,1] = 1000 - mat[:,1]
+    mat[:,1] = HEIGHT - mat[:,1]
     return mat
 
 class Robot:
@@ -59,7 +86,7 @@ class Robot:
     def get_robot_points(self):
         points = []
         
-        points.append([self.width+20,0])
+        points.append([self.width+10,0])
         points.append([self.width/2, self.height/2])
         points.append([-self.width/2, self.height/2])
         points.append([-self.width/2, -self.height/2])
@@ -81,17 +108,17 @@ class Robot:
         self.vel_r = vel_r
         self.vel_l = vel_l
     
-    def turn(self, diff_heading, turn_speed) -> None:
+    def turn(self, diff_heading, turn_speed, min_speed=0) -> None:
         if diff_heading >= 0:
             if diff_heading <=180:
-                self.move(turn_speed, -turn_speed)
+                self.move(turn_speed + min_speed, -turn_speed + min_speed)
             else:
-                self.move(-turn_speed, turn_speed)
+                self.move(-turn_speed + min_speed, turn_speed + min_speed)
         else:
             if diff_heading <= -180:
-                self.move(turn_speed, -turn_speed)
+                self.move(turn_speed + min_speed, -turn_speed + min_speed)
             else:
-                self.move(-turn_speed, turn_speed)
+                self.move(-turn_speed + min_speed, turn_speed + min_speed)
     
     def get_position(self) -> Tuple[float, float]:
         return self.x_coord, self.y_coord
@@ -99,9 +126,9 @@ class Robot:
     def get_speed(self) -> Tuple[float, float]:
         return self.vel_l, self.vel_r
 
-    def set_position(self, goal: Tuple[float, float]) -> None:
-        self.x_coord = goal[0]
-        self.y_coord = goal[1]
+    def set_position(self, pos: Tuple[float, float]) -> None:
+        self.x_coord = pos[0]
+        self.y_coord = pos[1]
 
         
 
@@ -143,21 +170,15 @@ class World:
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
-        self.obs += convert_to_display(np.array([[600,700]]))
+        self.obs += convert_to_display(np.array([[450,600]]))
         self.vehicle1 += convert_to_display(np.array([[600,100]]))
-        self.vehicle2 += convert_to_display(np.array([[100,100]]))
+        self.vehicle2 += convert_to_display(np.array([[120,100]]))
         self.obstacles = [self.obs, self.vehicle1, self.vehicle2]
         
         
 class Planner:    
     def __init__(self, robot: Robot, world: World) -> None:
-        self.trajectory = [[500, 800],
-                            [900,800],
-                            [800, 500],
-                            [20,50],
-                            [900, 900],
-                            [500,500],
-                            [100, 100]]
+        self.trajectory = [[-100,-100]]
         self.robot = robot
         self.world = world
 
@@ -193,7 +214,19 @@ class Planner:
                 if intersects(o, seg1) or intersects(o, seg2) or intersects(o, seg3) or \
                         intersects(o, seg4) or intersects(o, seg5):
                     return True
-
+    
+    def get_map(self, grid):
+        h = int(HEIGHT/3)
+        w = int(WIDTH/3)
+        grid_map = np.zeros((h, w))
+        counter = 1
+        for i in range(h):
+            for j in range(w):
+                # print("Iter: ", counter,"sum: ", np.sum(grid[:,i,j]))
+                counter += 1
+                if np.sum(grid[:,i,j]) > 255:
+                    grid_map[j][i] = 1
+        return grid_map
 
 
 
@@ -215,7 +248,8 @@ class Visualizer:
     
     def display_robot(self):
         robot_points = self.robot.get_robot_points()
-        pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, 1000-self.robot.y_coord),5)
+        pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, HEIGHT-self.robot.y_coord),5)
+        pygame.draw.circle(self.screen, self.BLACK, (self.robot.x_coord, HEIGHT-self.robot.y_coord),40,2)
         for i in range(5):
             if i == 4:
                 pygame.draw.line(self.screen, self.RED, robot_points[i], robot_points[0], 4)
@@ -240,6 +274,11 @@ class Visualizer:
         for i in range(len(self.world.obs)-1):
             pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
         
+        # rect = (self.world.obs[1][0], self.world.obs[1][1], 430, 230)
+        rect = (self.world.obs[2][0]-40, self.world.obs[2][1]-40, 480, 280)
+        pygame.draw.rect(self.screen, self.RED, rect, width=2, border_radius=40)
+
+
         for i in range(len(self.world.vehicle1)-1):
             pygame.draw.line(self.screen, self.RED, self.world.vehicle1[i], self.world.vehicle1[i+1], 8)
         
@@ -250,6 +289,15 @@ class Visualizer:
 
         for i in range(len(traj)-1):
             pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
+
+    def get_world_map(self):
+        self.screen.fill(self.WHITE)
+        self.display_world()
+        pygame.display.flip()
+        map = np.array(pygame.surfarray.array2d(self.screen))
+        map = np.swapaxes(map, 0, 1)
+        return map.astype(np.uint8)
+
 
     def update_display(self, is_colliding) -> bool:
 
@@ -301,6 +349,7 @@ class Runner:
 
             self.controller.step()
 
+
             if counter < len(goal):
                 success = self.controller.check_success(goal[counter])
             else:
@@ -313,15 +362,10 @@ class Runner:
             if success:
                 # do stuff for new goal
                 # stop robot
-                self.robot.move(0,0)
+                min_speed = 0.1
+                self.robot.move(min_speed,min_speed)
                 counter += 1                
                 # print("Waypoint reached")
-
-                # check collision here
-                # if collision -> counter++
-                # till new waypoint is w/o collision
-                # while self.planner.is_collision(goal, counter):
-                #     counter += 1
             else:
                 if self.planner.is_collision():
                     is_colliding = True
@@ -342,7 +386,7 @@ class Runner:
                     self.robot.turn(diff_heading, turn_speed)
                 else:
                     # self.robot.angle = heading
-                    gain = 0.005
+                    gain = 0.01
                     speed = max_speed(gain*((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
                     self.robot.move(speed, speed)
                     
@@ -357,8 +401,8 @@ class Runner:
         
 
 def main():
-    height = 1000
-    width = 1000
+    height = HEIGHT
+    width = WIDTH
 
 
     robot = Robot(0,900,0)
@@ -369,10 +413,40 @@ def main():
 
     runner = Runner(robot, controller, world, planner, vis)
 
+    world_map = vis.get_world_map()
+    image = cv2.resize(255 - world_map, (300,300), interpolation=cv2.INTER_AREA)
+    
+
+    obs_idx = np.argwhere(image == 255)
+    ox = np.array(obs_idx[:,0])
+    oy = np.array(obs_idx[:,0])
+    planner = AStarPlanner(ox, oy, image)
+    rx, ry = planner.planning(0,0, 270, 120)
+
+    print(len(rx))
+    for i in range(len(rx)-1):
+        image[rx[i]][ry[i]] = 127
+
+    cv2.imshow("map", image)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
+    # grid = blockshaped(image, 3, 3)
+    # print(np.sum(grid[:,0,0]))
+    # print(grid[:,0,0])
+    # grid_map = planner.get_map(grid)
+    # # print(grid_map)
+    # cv2.imshow("map", grid_map)
+    # cv2.waitKey()
+    # cv2.destroyAllWindows()
+    traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
+    trajectory = traj
+    print(traj.shape)
     try:
-        trajectory = mouse_trajectory(world.obs, width, height)
-        traj = trajectory[1::3]
-        runner.run(traj)
+        # trajectory = mouse_trajectory(world.obs, width, height)
+        # traj = trajectory[1::4]
+        runner.run(trajectory[1::5])
+        pass
     except AssertionError as e:
         print(f'ERROR: {e}, Aborting.')
     except KeyboardInterrupt:
