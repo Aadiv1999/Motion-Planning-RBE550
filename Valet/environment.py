@@ -269,47 +269,47 @@ class Visualizer:
         self.screen.blit(text1, (1, 5))
 
 
-    def display_world(self):
+    def display_world(self, counter=0):
         # pygame.draw.circle(self.screen, self.BLACK, (self.world.width/2, self.world.height/2),5)
         for i in range(len(self.world.obs)-1):
             pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
+        rect1 = (self.world.obs[2][0]-40, self.world.obs[2][1]-40, 480, 280)
         
-        # rect = (self.world.obs[1][0], self.world.obs[1][1], 430, 230)
-        rect = (self.world.obs[2][0]-40, self.world.obs[2][1]-40, 480, 280)
-        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
 
 
         for i in range(len(self.world.vehicle1)-1):
             pygame.draw.line(self.screen, self.RED, self.world.vehicle1[i], self.world.vehicle1[i+1], 8)
+        rect2 = (self.world.vehicle1[2][0]-40, self.world.vehicle1[2][1]-40, 280, 180)
         
-        rect = (self.world.vehicle1[2][0]-40, self.world.vehicle1[2][1]-40, 280, 180)
-        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
         
         for i in range(len(self.world.vehicle2)-1):
             pygame.draw.line(self.screen, self.RED, self.world.vehicle2[i], self.world.vehicle2[i+1], 8)
+        rect3 = (self.world.vehicle2[2][0]-40, self.world.vehicle2[2][1]-40, 280, 180)
         
-        rect = (self.world.vehicle2[2][0]-40, self.world.vehicle2[2][1]-40, 280, 180)
-        pygame.draw.rect(self.screen, self.BLACK, rect, width=2, border_radius=40)
+        if counter==-1:
+            pygame.draw.rect(self.screen, self.BLACK, rect1, width=2, border_radius=40)
+            pygame.draw.rect(self.screen, self.BLACK, rect2, width=2, border_radius=40)
+            pygame.draw.rect(self.screen, self.BLACK, rect3, width=2, border_radius=40)
 
         traj = convert_to_display(np.array(self.planner.get_trajectory()))
 
-        for i in range(len(traj)-1):
+        for i in range(counter-1):
             pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
 
     def get_world_map(self):
         self.screen.fill(self.WHITE)
-        self.display_world()
+        self.display_world(-1)
         pygame.display.flip()
         map = np.array(pygame.surfarray.array2d(self.screen))
         map = np.swapaxes(map, 0, 1)
         return map.astype(np.uint8)
 
 
-    def update_display(self, is_colliding) -> bool:
+    def update_display(self, is_colliding, counter) -> bool:
 
         self.screen.fill(self.WHITE)
 
-        self.display_world()
+        self.display_world(counter)
 
         self.display_robot()
 
@@ -372,14 +372,14 @@ class Runner:
                     time.sleep(5)
                     break
 
-            
             if success:
                 # do stuff for new goal
                 # stop robot
                 min_speed = 0.1
                 if not goal_check:
                     self.robot.move(min_speed,min_speed)
-                counter += 1                
+                    counter += 1  
+                              
                 # print("Waypoint reached")
             else:
                 if self.planner.is_collision():
@@ -410,7 +410,7 @@ class Runner:
             self.robot.dt = (pygame.time.get_ticks() - lasttime)
             lasttime = pygame.time.get_ticks()
 
-            running = self.vis.update_display(is_colliding)
+            running = self.vis.update_display(is_colliding, counter)
             
             time.sleep(0.001)
         
