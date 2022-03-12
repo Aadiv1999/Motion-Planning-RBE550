@@ -358,18 +358,27 @@ class Runner:
 
             if counter < len(goal):
                 success = self.controller.check_success(goal[counter])
+                goal_check = False
             else:
                 success = True
-                print("Final goal reached")
-                time.sleep(5)
-                break
+                goal_check = True
+                print("Final goal reached\r")
+                diff_heading = self.robot.angle
+                if abs(diff_heading) > 0.05:
+                    gain = 0.01
+                    turn_speed = max_turn(gain * diff_heading)
+                    self.robot.turn(diff_heading, turn_speed)
+                else:
+                    time.sleep(5)
+                    break
 
             
             if success:
                 # do stuff for new goal
                 # stop robot
                 min_speed = 0.1
-                self.robot.move(min_speed,min_speed)
+                if not goal_check:
+                    self.robot.move(min_speed,min_speed)
                 counter += 1                
                 # print("Waypoint reached")
             else:
