@@ -1,3 +1,4 @@
+from tkinter import RIGHT
 from astar import AStarPlanner
 from bfs import BreadthFirstSearchPlanner
 from matplotlib import pyplot as plt
@@ -109,26 +110,36 @@ class Robot:
     
         
     
-    def turn(self, speed:float, diff_heading: float) -> None:
-        angle_thresh = 70
+    def turn(self, speed:float, gain: float, diff_heading: float) -> None:
+        angle_thresh = 75
+        # +ve is RIGHT
+        # -ve is LEFT
         if diff_heading > 0:
-            if diff_heading <180:
+            if diff_heading > 180:
                 # turn right
-                if diff_heading > angle_thresh: diff_heading = angle_thresh
-                self.move(speed, diff_heading)
+                if gain*diff_heading > angle_thresh: self.move(speed, angle_thresh)
+                else: self.move(speed, gain*diff_heading)
             else:
                 # turn left
-                if diff_heading > angle_thresh: diff_heading = angle_thresh
-                self.move(speed, -diff_heading)
+                if gain*diff_heading > angle_thresh: self.move(speed, -angle_thresh)
+                else: self.move(speed, -gain*diff_heading)
         else:
-            if diff_heading < -180:
+            if diff_heading > -180:
                 # turn right
-                if diff_heading < -angle_thresh: diff_heading = -angle_thresh
-                self.move(speed, -diff_heading)
+                if gain*diff_heading < -angle_thresh: self.move(speed, angle_thresh)
+                else: self.move(speed, -gain*diff_heading)
             else:
                 # turn left
-                if diff_heading < -angle_thresh: diff_heading = -angle_thresh
-                self.move(speed, diff_heading)
+                if gain*diff_heading < -angle_thresh: self.move(speed, -angle_thresh)
+                else: self.move(speed, gain*diff_heading)        
+        # if diff_heading > 0:
+        #     if diff_heading > angle_thresh: diff_heading = angle_thresh
+        #     self.move(speed, -diff_heading)
+        # else:
+        #     if diff_heading < -angle_thresh: diff_heading = -angle_thresh
+        #     self.move(speed, -diff_heading)
+        # if diff_heading > angle_thresh: diff_heading = angle_thresh
+        # self.move(speed, diff_heading)
     
     def get_position(self) -> Tuple[float, float]:
         return self.x_coord, self.y_coord
@@ -188,12 +199,14 @@ class World:
         
 class Planner:    
     def __init__(self, robot: Robot, world: World) -> None:
-        self.trajectory = [[800,100],
-                            [500,500],
-                            [600,800],
-                            [100,300]]
         self.robot = robot
         self.world = world
+        self.trajectory = [[self.robot.x_coord, self.robot.y_coord],
+                            [100,200],
+                            [350,400],
+                            [700,300],
+                            [700,100],
+                            [700, 400]]
 
     def get_trajectory(self):
         return self.trajectory
@@ -331,8 +344,8 @@ class Visualizer:
         pygame.draw.circle(self.screen, self.BLACK, traj[0], 5)
         for i in range(counter-1):
             pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
-        # for i in range(len(traj)-1):
-        #     pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
+        for i in range(len(traj)):
+            pygame.draw.circle(self.screen, self.BLUE, traj[i], 5)
         
         
 
@@ -390,8 +403,8 @@ class Runner:
         success = False    
         is_colliding = False 
         goal = self.planner.get_trajectory()
-
-        gain = 2
+        counter_loop = 0
+        gain = 2.5
 
         while running:
 
@@ -400,53 +413,52 @@ class Runner:
             if counter < len(goal):
                 success = self.controller.check_success(goal[counter])
                 goal_check = False
+                # print("Counter: ", counter)
             else:
                 success = True
                 goal_check = True
                 print("Final goal reached\r")
                 diff_heading = self.robot.angle
+           
+                
+            if not goal_check:
+                dy = goal[counter][1] - self.robot.y_coord
+                dx = goal[counter][0] - self.robot.x_coord
+                counter_loop += 1
+                # print(counter_loop)
 
+
+            heading = np.round(self.planner.get_heading(dx,dy),0)
+            diff_heading = heading - self.robot.angle
+            # print(diff_heading)
+            
+            # print(diff_heading)
+
+            if abs(diff_heading) > 0.005 and not goal_check:
+                self.robot.turn(0.1, gain, diff_heading)
+            else:
+                gain = 0
+                # speed = max_speed(gain*((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
+                self.robot.move(0.1, 0)
+            
             if success:
                 # do stuff for new goal
                 # stop robot
                 if not goal_check:
                     self.robot.move(0,0)
-                    print("WAYPOINT")
+                    # print("WAYPOINT")
                     counter += 1
-                    gain = 2
-                              
+                    gain = 2.5
+                    counter_loop = 0
+                else:
+                    self.robot.move(0,0)
                 # print("Waypoint reached")
             else:
                 if self.planner.is_collision():
                     is_colliding = True
                 else:
                     is_colliding = False
-                
-            if counter != last_counter:
-                dy = goal[counter][1] - self.robot.y_coord
-                dx = goal[counter][0] - self.robot.x_coord
 
-                # dy = goal[counter][1] - goal[counter-1][1]
-                # dx = goal[counter][0] - goal[counter-1][0]
-
-                last_counter = counter
-
-            else:
-                # dy = goal[counter][1] - self.robot.y_coord
-                # dx = goal[counter][0] - self.robot.x_coord
-
-                heading = np.round(self.planner.get_heading(dx,dy),0)
-                diff_heading = self.robot.angle - heading
-                
-                # print(diff_heading)
-
-                if abs(diff_heading) > 0.005:
-                    self.robot.turn(0.1, gain * diff_heading)
-                else:
-                    gain = 0
-                    speed = max_speed(gain*((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
-                    self.robot.move(0.1, 0)
-            
 
             # dt            
             self.robot.dt = (pygame.time.get_ticks() - lasttime)
@@ -462,39 +474,39 @@ def main():
     width = WIDTH
 
 
-    robot = Robot(100,300,45)
+    robot = Robot(0,900,45)
     controller = Controller(robot)
     world = World(width, height)
     planner = Planner(robot, world)
     vis = Visualizer(robot, world, planner)
 
-    # world_map = vis.get_world_map()
-    # image = cv2.resize(255 - world_map, (300,300), interpolation=cv2.INTER_AREA)
+    world_map = vis.get_world_map()
+    image = cv2.resize(255 - world_map, (300,300), interpolation=cv2.INTER_AREA)
     
 
-    # obs_idx = np.argwhere(image == 255)
-    # ox = np.array(obs_idx[:,0])
-    # oy = np.array(obs_idx[:,0])
+    obs_idx = np.argwhere(image == 255)
+    ox = np.array(obs_idx[:,0])
+    oy = np.array(obs_idx[:,0])
 
-    # path_planner = AStarPlanner(ox, oy, image)
-    # # planner = BreadthFirstSearchPlanner(ox, oy, image)
+    path_planner = AStarPlanner(ox, oy, image)
+    # planner = BreadthFirstSearchPlanner(ox, oy, image)
 
-    # trajectory = mouse_trajectory(world.obstacles, width, height)
-    # gx = trajectory[-1][1]//3
-    # gy = trajectory[-1][0]//3
-    # rx, ry = path_planner.planning(0,0, gx, gy)
+    trajectory = mouse_trajectory(world.obstacles, width, height)
+    gx = trajectory[-1][1]//3
+    gy = trajectory[-1][0]//3
+    rx, ry = path_planner.planning(0,0, gx, gy)
 
-    # for i in range(len(rx)-1):
-    #     image[rx[i]][ry[i]] = 127
+    for i in range(len(rx)-1):
+        image[rx[i]][ry[i]] = 127
 
     # # cv2.imshow("map", image)
     # # cv2.waitKey()
     # # cv2.destroyAllWindows()
 
-    # traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
-    # trajectory = traj[1::5]
+    traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
+    trajectory = traj[1::25]
 
-    # planner.trajectory = convert_to_display(np.array(trajectory))
+    planner.trajectory = convert_to_display(np.array(trajectory))
 
     runner = Runner(robot, controller, world, planner, vis)
 
