@@ -24,7 +24,7 @@ class AStarPlanner:
         """
 
         self.reso = 1
-        self.rr = 0.5
+        self.rr = 20
 
         self.obstacle_map = obs_map
         self.motion = self.get_motion_model()

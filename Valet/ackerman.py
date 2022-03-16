@@ -1,3 +1,4 @@
+from calendar import c
 from tkinter import RIGHT
 from astar import AStarPlanner
 from bfs import BreadthFirstSearchPlanner
@@ -5,17 +6,17 @@ from matplotlib import pyplot as plt
 from mouse import mouse_trajectory
 from collision import intersects
 import time
-from typing import List, Tuple, Union
+from typing import List, Tuple
 from copy import copy
 import numpy as np
 import pygame
-import random
-import math
 from math import sin, cos, tan, atan2, pi, sqrt
 import cv2
 WIDTH = 900
 HEIGHT = 900
 
+def euclidian(p1, p2):
+    return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
 
 def max_speed(speed):
     if speed > 1:
@@ -46,8 +47,8 @@ class Robot:
     y_coord: int
     vel_r: int
     vel_l: int
-    width: int = 100
-    height: int = 70
+    width: int = 70
+    height: int = 56
     angle = 0
     points = []
     dt = 0 
@@ -60,13 +61,15 @@ class Robot:
         self.phi = 0
         self.vel_l = 0
         self.vel_r = 0
+        self.max_turn = 30
+        self.rad = self.width / tan(self.max_turn * pi/180)
         
         # self.chassis = self.robot_points()
     
     def get_robot_points(self):
         points = []
         
-        points.append([self.width+20,0])
+        points.append([self.width+10,0])
         points.append([self.width, self.height/2])
         points.append([0, self.height/2])
         points.append([0, -self.height/2])
@@ -86,7 +89,8 @@ class Robot:
         points.append(rot_points([0,141], -self.phi) + np.array([self.width,0]))
         points.append(np.array([self.width,0]))
 
-
+        points.append([0, self.rad])
+        points.append([0, -self.rad])
         points = rot_points(points, self.angle) + np.array([self.x_coord, self.y_coord])
         points = convert_to_display(points)
         
@@ -111,7 +115,7 @@ class Robot:
         
     
     def turn(self, speed:float, gain: float, diff_heading: float) -> None:
-        angle_thresh = 75
+        angle_thresh = self.max_turn
         # +ve is RIGHT
         # -ve is LEFT
         if diff_heading > 0:
@@ -132,14 +136,6 @@ class Robot:
                 # turn left
                 if gain*diff_heading < -angle_thresh: self.move(speed, -angle_thresh)
                 else: self.move(speed, gain*diff_heading)        
-        # if diff_heading > 0:
-        #     if diff_heading > angle_thresh: diff_heading = angle_thresh
-        #     self.move(speed, -diff_heading)
-        # else:
-        #     if diff_heading < -angle_thresh: diff_heading = -angle_thresh
-        #     self.move(speed, -diff_heading)
-        # if diff_heading > angle_thresh: diff_heading = angle_thresh
-        # self.move(speed, diff_heading)
     
     def get_position(self) -> Tuple[float, float]:
         return self.x_coord, self.y_coord
@@ -191,9 +187,9 @@ class World:
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
-        self.obs += convert_to_display(np.array([[450,600]]))
+        self.obs += convert_to_display(np.array([[400,400]]))
         self.vehicle1 += convert_to_display(np.array([[600,100]]))
-        self.vehicle2 += convert_to_display(np.array([[250,100]]))
+        self.vehicle2 += convert_to_display(np.array([[150,100]]))
         self.obstacles = [self.obs, self.vehicle1, self.vehicle2]
         
         
@@ -302,44 +298,55 @@ class Visualizer:
 
         for r in robot_path:
             pygame.draw.circle(self.screen, self.BLACK, r, 1)
+        
+        points = self.robot.get_robot_points()
+        p1 = points[-2]
+        p2 = points[-1]
+
+        # pygame.draw.line(self.screen, self.GREEN, p1, (self.robot.x_coord, 900-self.robot.y_coord), 4)
+        # pygame.draw.line(self.screen, self.GREEN, p2, (self.robot.x_coord, 900-self.robot.y_coord), 4)
+        
 
         coor = 'Coordinates: ' + str(np.round(self.robot.get_position(),2))
         speeds = 'Speeds: ' + str(np.round(self.robot.get_speed(),2))
         angle = 'Steering: ' + str(np.round(self.robot.phi,2))
+        self_angle = 'Heading: ' + str(np.round(self.robot.angle,2))
         text = self.font.render(coor, True, self.BLACK)
         self.screen.blit(text, (1, 30))
         text1 = self.font.render(speeds, True, self.BLACK)
         self.screen.blit(text1, (1, 5))
         text2 = self.font.render(angle, True, self.BLACK)
         self.screen.blit(text2, (1, 55))
+        text3 = self.font.render(self_angle, True, self.BLACK)
+        self.screen.blit(text3, (1, 80))
 
 
     def display_world(self, counter=0):
         # pygame.draw.circle(self.screen, self.BLACK, (self.world.width/2, self.world.height/2),5)
-        # for i in range(len(self.world.obs)-1):
-        #     pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
-        # rect1 = (self.world.obs[2][0]-40, self.world.obs[2][1]-40, 480, 280)
+        for i in range(len(self.world.obs)-1):
+            pygame.draw.line(self.screen, self.RED, self.world.obs[i], self.world.obs[i+1], 8)
+        rect1 = (self.world.obs[2][0]-55, self.world.obs[2][1]-55, 510, 310)
         
 
 
-        # for i in range(len(self.world.vehicle1)-1):
-        #     pygame.draw.line(self.screen, self.RED, self.world.vehicle1[i], self.world.vehicle1[i+1], 8)
-        # rect2 = (self.world.vehicle1[2][0]-40, self.world.vehicle1[2][1]-40, 280, 180)
+        for i in range(len(self.world.vehicle1)-1):
+            pygame.draw.line(self.screen, self.RED, self.world.vehicle1[i], self.world.vehicle1[i+1], 8)
+        rect2 = (self.world.vehicle1[2][0]-55, self.world.vehicle1[2][1]-55, 310, 210)
         
         
-        # for i in range(len(self.world.vehicle2)-1):
-        #     pygame.draw.line(self.screen, self.RED, self.world.vehicle2[i], self.world.vehicle2[i+1], 8)
-        # rect3 = (self.world.vehicle2[2][0]-40, self.world.vehicle2[2][1]-40, 280, 180)
+        for i in range(len(self.world.vehicle2)-1):
+            pygame.draw.line(self.screen, self.RED, self.world.vehicle2[i], self.world.vehicle2[i+1], 8)
+        rect3 = (self.world.vehicle2[2][0]-55, self.world.vehicle2[2][1]-55, 310, 210)
         
         traj = convert_to_display(np.array(self.planner.get_trajectory()))
 
-        # if counter==-1:
-        #     pygame.draw.rect(self.screen, self.BLACK, rect1, width=2, border_radius=40)
-        #     pygame.draw.rect(self.screen, self.BLACK, rect2, width=2, border_radius=40)
-        #     pygame.draw.rect(self.screen, self.BLACK, rect3, width=2, border_radius=40)
-        # else:
-        #     pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
-        #     pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
+        if counter==-1:
+            pygame.draw.rect(self.screen, self.BLACK, rect1, width=2, border_radius=40)
+            pygame.draw.rect(self.screen, self.BLACK, rect2, width=2, border_radius=40)
+            pygame.draw.rect(self.screen, self.BLACK, rect3, width=2, border_radius=40)
+        else:
+            pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
+            pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
 
         pygame.draw.circle(self.screen, self.BLACK, traj[0], 5)
         for i in range(counter-1):
@@ -398,13 +405,14 @@ class Runner:
     def run(self):
         running = True
         counter = 0
-        last_counter = -1
+        last_counter = True
         lasttime = pygame.time.get_ticks() 
         success = False    
         is_colliding = False 
         goal = self.planner.get_trajectory()
         counter_loop = 0
         gain = 2.5
+        
 
         while running:
 
@@ -417,8 +425,13 @@ class Runner:
             else:
                 success = True
                 goal_check = True
-                print("Final goal reached\r")
+                
                 diff_heading = self.robot.angle
+                if abs(diff_heading) > 0.5:
+                    # print("Final goal reached\r")
+                    self.robot.turn(-0.1, 1, -self.robot.max_turn)
+                else:
+                    self.robot.move(0,0)
            
                 
             if not goal_check:
@@ -430,28 +443,39 @@ class Runner:
 
             heading = np.round(self.planner.get_heading(dx,dy),0)
             diff_heading = heading - self.robot.angle
-            # print(diff_heading)
-            
-            # print(diff_heading)
 
             if abs(diff_heading) > 0.005 and not goal_check:
+                # print(counter)
+                if counter < len(goal)-1:
+                    points = self.robot.get_robot_points()
+                    p1 = points[-2]
+                    p2 = points[-1]
+                    p3 = [goal[counter+1][0], 900-goal[counter+1][1]]
+                    buffer = self.robot.rad+5
+                    if (euclidian(p1, p3)<buffer or euclidian(p2, p3)<buffer) and counter!=1:
+                        # print("Rad")
+                        counter += 1
+                        print(counter)
                 self.robot.turn(0.1, gain, diff_heading)
-            else:
+            elif not goal_check:
                 gain = 0
+                last_counter = False
+                # print("Move towards goal")
                 # speed = max_speed(gain*((self.robot.x_coord-goal[counter][0])**2 + (self.robot.y_coord-goal[counter][1])**2)**0.5)
-                self.robot.move(0.1, 0)
+                speed = 0.1
+                self.robot.move(speed, 0)
             
-            if success:
+            if success and not goal_check:
                 # do stuff for new goal
                 # stop robot
-                if not goal_check:
-                    self.robot.move(0,0)
-                    # print("WAYPOINT")
-                    counter += 1
-                    gain = 2.5
-                    counter_loop = 0
-                else:
-                    self.robot.move(0,0)
+                # if not goal_check:
+                self.robot.move(0,0)
+                # print("WAYPOINT")
+                counter += 1
+                gain = 2.5
+                counter_loop = 0
+                # else:
+                #     self.robot.move(0,0)
                 # print("Waypoint reached")
             else:
                 if self.planner.is_collision():
@@ -474,7 +498,7 @@ def main():
     width = WIDTH
 
 
-    robot = Robot(0,900,45)
+    robot = Robot(0,900,0)
     controller = Controller(robot)
     world = World(width, height)
     planner = Planner(robot, world)
@@ -499,13 +523,13 @@ def main():
     for i in range(len(rx)-1):
         image[rx[i]][ry[i]] = 127
 
-    # # cv2.imshow("map", image)
-    # # cv2.waitKey()
-    # # cv2.destroyAllWindows()
+    # cv2.imshow("map", image)
+    # cv2.waitKey()
+    # cv2.destroyAllWindows()
 
     traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
-    trajectory = traj[1::25]
-
+    trajectory = traj[1::5]
+    trajectory = np.vstack((trajectory, traj[-1]))
     planner.trajectory = convert_to_display(np.array(trajectory))
 
     runner = Runner(robot, controller, world, planner, vis)
