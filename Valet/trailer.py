@@ -143,18 +143,16 @@ class Robot:
         vel_r = vel_l * ((2*h - w*tan(t))/(2*h + w*tan(t)))
         c = -self.angle + self.theta
         
-        if c < 0:
+        if c > 0:
             self.vel_rt = vel_r
             self.vel_lt = vel_l
         else:
-            if c > 180:
+            if c > -180:
                 self.vel_lt = vel_r
                 self.vel_rt = vel_l
             else:
                 self.vel_lt = vel_l
                 self.vel_rt = vel_r
-
-    
         
     
     def turn(self, speed:float, gain: float, diff_heading: float) -> None:
@@ -320,6 +318,7 @@ class Visualizer:
         pygame.display.set_caption('Farmland')
         self.font = pygame.font.SysFont('freesansbolf.tff', 30)
         self.robot_path = []
+        self.trailer_path = []
     
     def display_robot(self):
         robot_points = self.robot.get_robot_points()
@@ -346,10 +345,18 @@ class Visualizer:
         # pygame.draw.line(self.screen, self.BLUE, robot_points[11], robot_points[12], 2)
 
         self.robot_path.append([self.robot.x_coord, self.robot.y_coord])
+        x = robot_points[20][0]+robot_points[19][0]
+        y = robot_points[20][1]+robot_points[19][1]
+        self.trailer_path.append([x/2, y/2])
+        
         robot_path = convert_to_display(np.array(self.robot_path))
+        trailer_path = convert_to_display(np.array(self.trailer_path))
 
         for r in robot_path:
             pygame.draw.circle(self.screen, self.BLACK, r, 1)
+        
+        for t in self.trailer_path:
+            pygame.draw.circle(self.screen, self.BLUE, t, 1)
         
         p1 = robot_points[-2]
         p2 = robot_points[-1]
@@ -403,13 +410,14 @@ class Visualizer:
             pygame.draw.rect(self.screen, self.BLACK, rect1, width=2, border_radius=40)
             pygame.draw.rect(self.screen, self.BLACK, rect2, width=2, border_radius=40)
             pygame.draw.rect(self.screen, self.BLACK, rect3, width=2, border_radius=40)
-        else:
-            pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
-            pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
+        # else:
+        #     pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
+        #     pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
 
-        pygame.draw.circle(self.screen, self.BLACK, traj[0], 5)
-        for i in range(counter-1):
-            pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
+        # pygame.draw.circle(self.screen, self.BLACK, traj[0], 5)
+        
+        # for i in range(counter-1):
+        #     pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
         
         # for i in range(len(traj)):
         #     pygame.draw.circle(self.screen, self.BLUE, traj[i], 3)

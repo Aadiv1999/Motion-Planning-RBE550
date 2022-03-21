@@ -15,29 +15,6 @@ import cv2
 WIDTH = 900
 HEIGHT = 900
 
-
-def blockshaped(arr, r_nbrs, c_nbrs, interp=cv2.INTER_LINEAR):
-    """
-    arr      a 2D array, typically an image
-    r_nbrs   numbers of rows
-    r_cols   numbers of cols
-    """
-
-    arr_h, arr_w = arr.shape
-
-    size_w = int( math.floor(arr_w // c_nbrs) * c_nbrs )
-    size_h = int( math.floor(arr_h // r_nbrs) * r_nbrs )
-
-    if size_w != arr_w or size_h != arr_h:
-        arr = cv2.resize(arr, (size_w, size_h), interpolation=interp)
-
-    nrows = int(size_w // r_nbrs)
-    ncols = int(size_h // c_nbrs)
-
-    return (arr.reshape(r_nbrs, ncols, -1, nrows) 
-               .swapaxes(1,2)
-               .reshape(-1, ncols, nrows))
-
 def max_speed(speed):
     if speed > 1:
         return 1
@@ -171,7 +148,7 @@ class World:
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
-        self.obs += convert_to_display(np.array([[450,600]]))
+        self.obs += convert_to_display(np.array([[450,400]]))
         self.vehicle1 += convert_to_display(np.array([[600,100]]))
         self.vehicle2 += convert_to_display(np.array([[250,100]]))
         self.obstacles = [self.obs, self.vehicle1, self.vehicle2]
@@ -455,7 +432,7 @@ def main():
     # cv2.destroyAllWindows()
 
     traj = np.flip(np.vstack((ry*3,rx*3)).T, axis=0)
-    trajectory = traj[1::5]
+    trajectory = traj[1::10]
 
     planner.trajectory = convert_to_display(np.array(trajectory))
 

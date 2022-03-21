@@ -351,16 +351,16 @@ class Visualizer:
             pygame.draw.rect(self.screen, self.BLACK, rect1, width=2, border_radius=40)
             pygame.draw.rect(self.screen, self.BLACK, rect2, width=2, border_radius=40)
             pygame.draw.rect(self.screen, self.BLACK, rect3, width=2, border_radius=40)
-        else:
-            pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
-            pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
+        # else:
+        #     pygame.draw.circle(self.screen, self.GREEN, traj[-1], 20, 2)
+        #     pygame.draw.circle(self.screen, self.BLACK, traj[-1], 5)
 
         pygame.draw.circle(self.screen, self.BLACK, traj[0], 5)
-        for i in range(counter-1):
-            pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
+        # for i in range(counter-1):
+        #     pygame.draw.line(self.screen, self.BLUE, traj[i], traj[i+1])
         
-        for i in range(len(traj)):
-            pygame.draw.circle(self.screen, self.BLUE, traj[i], 3)
+        # for i in range(len(traj)):
+        #     pygame.draw.circle(self.screen, self.BLUE, traj[i], 3)
         
         
 
